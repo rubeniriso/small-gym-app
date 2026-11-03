@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:gym_app/domain/models.dart';
 import 'package:gym_app/domain/progression.dart';
+import 'package:gym_app/l10n/app_strings.dart';
 
 class ProgressChart extends StatelessWidget {
   const ProgressChart({super.key, required this.points, required this.unit});
@@ -24,6 +25,7 @@ class ProgressChart extends StatelessWidget {
           line: theme.colorScheme.primary,
           grid: theme.colorScheme.outlineVariant,
           label: theme.colorScheme.onSurfaceVariant,
+          formatDay: context.s.chartDay,
         ),
       ),
     );
@@ -37,6 +39,7 @@ class _LineChartPainter extends CustomPainter {
     required this.line,
     required this.grid,
     required this.label,
+    required this.formatDay,
   });
 
   final List<ProgressPoint> points;
@@ -44,6 +47,7 @@ class _LineChartPainter extends CustomPainter {
   final Color line;
   final Color grid;
   final Color label;
+  final String Function(DateTime day) formatDay;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -138,23 +142,7 @@ class _LineChartPainter extends CustomPainter {
     return formatKg(value);
   }
 
-  String _day(DateTime day) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${day.day} ${months[day.month - 1]}';
-  }
+  String _day(DateTime day) => formatDay(day);
 
   double _measure(String text, Color color) {
     final painter = TextPainter(

@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:gym_app/domain/dates.dart';
 import 'package:gym_app/domain/exercise.dart';
 import 'package:gym_app/domain/models.dart';
 import 'package:gym_app/domain/progression.dart';
-import 'package:gym_app/domain/sprint.dart';
+import 'package:gym_app/l10n/app_strings.dart';
 import 'package:gym_app/providers.dart';
 import 'package:gym_app/screens/sprint_timer_screen.dart';
-import 'package:gym_app/widgets/database_view.dart';
+import 'package:gym_app/widgets/duration_picker.dart';
+import 'package:gym_app/widgets/exercise_picker.dart';
+import 'package:gym_app/widgets/strength_set_row.dart';
 
 class LogSessionScreen extends ConsumerStatefulWidget {
   const LogSessionScreen({super.key, this.routineId});
@@ -26,11 +27,11 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
   var _loading = true;
   var _saving = false;
   String? _error;
-  final _weights = <Exercise, TextEditingController>{};
-  final _reps = <Exercise, List<TextEditingController>>{};
+  final _sets = <Exercise, List<_SetDraft>>{};
   final _speeds = <Exercise, TextEditingController>{};
-  final _minutes = <Exercise, TextEditingController>{};
+  final _durations = <Exercise, int>{};
   final _completed = <Exercise, List<LoggedInterval>>{};
+  final _swapped = <Exercise, Exercise>{};
 
   @override
   void initState() {
@@ -59,25 +60,21 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
   }
 
   void _bindExercise(LogExerciseSeed exercise) {
+    final substitute = exercise.substitute;
+    if (substitute != null) {
+      _swapped[exercise.exercise] = substitute;
+    }
     switch (exercise.exercise.kind) {
       case ExerciseKind.strength:
-        final weight = exercise.weightKg;
-        _weights[exercise.exercise] = TextEditingController(
-          text: weight == null ? '' : formatKg(weight),
-        );
-        _reps[exercise.exercise] = [
-          for (final reps in exercise.reps)
-            TextEditingController(text: '$reps'),
+        _sets[exercise.exercise] = [
+          for (final set in exercise.strengthSets) _SetDraft.fromSeed(set),
         ];
       case ExerciseKind.jogging:
         final speed = exercise.speedKmh;
-        final minutes = exercise.durationSeconds;
         _speeds[exercise.exercise] = TextEditingController(
           text: speed == null ? '' : formatKg(speed),
         );
-        _minutes[exercise.exercise] = TextEditingController(
-          text: minutes == null ? '' : '${minutes ~/ 60}',
-        );
+        _durations[exercise.exercise] = exercise.durationSeconds ?? 0;
       case ExerciseKind.sprinting:
         final completed = exercise.completed;
         if (completed != null) {
@@ -106,17 +103,8 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
 
   @override
   void dispose() {
-    for (final controller in [
-      ..._weights.values,
-      ..._speeds.values,
-      ..._minutes.values,
-    ]) {
+    for (final controller in _speeds.values) {
       controller.dispose();
-    }
-    for (final controllers in _reps.values) {
-      for (final controller in controllers) {
-        controller.dispose();
-      }
     }
     super.dispose();
   }
@@ -128,6 +116,9 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
     }
     final lifts = <LoggedLift>[];
     for (final exercise in form.exercises) {
+      if (exercise.exercise.kind == ExerciseKind.strength) {
+        continue;
+      }
       final lift = _readLift(exercise);
       if (lift == null) {
         return;
@@ -141,7 +132,7 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
     });
     try {
       await ref.mutate(
-        (repository) => repository.logSession(
+        (repository) => repository.saveLifts(
           routineId: form.routineId,
           loggedOn: form.day,
           workoutId: form.workoutId,
@@ -155,7 +146,7 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
       }
       setState(() {
         _saving = false;
-        _error = messageFor(error);
+        _error = context.s.errorMessage(error);
       });
       return;
     }
@@ -172,9 +163,15 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
     }
     final form = _form;
     if (form == null) {
-      return Center(child: Text(_unavailableMessage(_unavailable)));
+      return Center(child: Text(context.s.todayMessage(_unavailable)));
     }
     final theme = Theme.of(context);
+    final needsSave = form.exercises.any(
+      (exercise) => exercise.exercise.kind != ExerciseKind.strength,
+    );
+    final hasStrength = form.exercises.any(
+      (exercise) => exercise.exercise.kind == ExerciseKind.strength,
+    );
     return Column(
       children: [
         Expanded(
@@ -183,73 +180,211 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(form.workoutName, style: theme.textTheme.headlineSmall),
+                Text(
+                  context.s.workoutName(form.workoutName),
+                  style: theme.textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 4),
                 Text(
-                  formatLongDate(form.day),
+                  context.s.longDate(form.day),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 16),
+                if (hasStrength)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () {
+                        final id = widget.routineId;
+                        context.push(
+                          id == null ? '/autopilot' : '/routines/$id/autopilot',
+                        );
+                      },
+                      child: Text(context.s.text('Autopilot')),
+                    ),
+                  ),
                 for (final exercise in form.exercises) ...[
-                  Text(
-                    exercise.exercise.label,
-                    style: theme.textTheme.titleMedium,
+                  InkWell(
+                    onTap: exercise.exercise.kind == ExerciseKind.strength
+                        ? () => _changeExercise(form, exercise)
+                        : null,
+                    child: Text(
+                      context.s.exerciseName(_currentExercise(exercise)),
+                      style: theme.textTheme.titleMedium,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  ..._fields(exercise),
+                  ..._fields(form, exercise),
                   const SizedBox(height: 8),
                 ],
                 if (_error != null)
                   Text(
-                    _error!,
+                    context.s.text(_error!),
                     style: TextStyle(color: theme.colorScheme.error),
                   ),
               ],
             ),
           ),
         ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: FilledButton(
-              onPressed: _saving ? null : _save,
-              child: Text(form.updating ? 'Update session' : 'Save'),
+        if (needsSave)
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: FilledButton(
+                onPressed: _saving ? null : _save,
+                child: Text(
+                  form.updating
+                      ? context.s.text('Update session')
+                      : context.s.text('Save'),
+                ),
+              ),
             ),
           ),
-        ),
       ],
     );
+  }
+
+  Exercise _currentExercise(LogExerciseSeed exercise) {
+    return _swapped[exercise.exercise] ?? exercise.exercise;
+  }
+
+  Future<void> _changeExercise(LogFormData form, LogExerciseSeed seed) async {
+    final taken = {
+      for (final exercise in form.exercises) _currentExercise(exercise),
+    };
+    taken.remove(_currentExercise(seed));
+    final options = [
+      for (final exercise in Exercise.catalog)
+        if (exercise.kind == seed.exercise.kind && !taken.contains(exercise))
+          exercise,
+    ];
+    final picked = await showExercisePicker(
+      context,
+      options,
+      title: context.s.exerciseName(_currentExercise(seed)),
+    );
+    if (!mounted || picked == null) {
+      return;
+    }
+    setState(() {
+      if (picked == seed.exercise) {
+        _swapped.remove(seed.exercise);
+      } else {
+        _swapped[seed.exercise] = picked;
+      }
+      _error = null;
+    });
+  }
+
+  Future<void> _editSet(
+    LogFormData form,
+    LogExerciseSeed seed,
+    int index,
+  ) async {
+    final draft = _sets[seed.exercise]![index];
+    final edited = await editStrengthSet(
+      context,
+      weightKg: draft.displayKg,
+      reps: draft.displayReps,
+    );
+    if (!mounted || edited == null) {
+      return;
+    }
+    setState(() {
+      draft.weight = edited.weightKg;
+      draft.reps = edited.reps;
+      draft.edited = true;
+      _error = null;
+    });
+    if (draft.done) {
+      await _saveSet(form, seed, index);
+    }
+  }
+
+  Future<void> _toggleSet(
+    LogFormData form,
+    LogExerciseSeed seed,
+    int index,
+  ) async {
+    final draft = _sets[seed.exercise]![index];
+    if (draft.done) {
+      try {
+        await ref.mutate(
+          (repository) => repository.clearStrengthSet(
+            routineId: form.routineId,
+            loggedOn: form.day,
+            exercise: _currentExercise(seed),
+            setIndex: index,
+          ),
+        );
+      } on ArgumentError catch (error) {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _error = context.s.errorMessage(error));
+        return;
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        draft.done = false;
+        _error = null;
+      });
+      return;
+    }
+    await _saveSet(form, seed, index);
+  }
+
+  Future<void> _saveSet(
+    LogFormData form,
+    LogExerciseSeed seed,
+    int index,
+  ) async {
+    final draft = _sets[seed.exercise]![index];
+    try {
+      await ref.mutate(
+        (repository) => repository.saveStrengthSet(
+          routineId: form.routineId,
+          loggedOn: form.day,
+          workoutId: form.workoutId,
+          trainingSlotId: form.trainingSlotId,
+          exercise: _currentExercise(seed),
+          targetReps: seed.targetReps,
+          setIndex: index,
+          weightKg: draft.displayKg,
+          reps: draft.displayReps,
+        ),
+      );
+    } on ArgumentError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = context.s.errorMessage(error));
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      draft.done = true;
+      draft.weight ??= draft.placeholderKg;
+      draft.reps ??= draft.placeholderReps;
+      _error = null;
+    });
   }
 
   LoggedLift? _readLift(LogExerciseSeed exercise) {
     switch (exercise.exercise.kind) {
       case ExerciseKind.strength:
-        final weight = tryParseKg(_weights[exercise.exercise]!.text);
-        if (weight == null) {
-          setState(() => _error = 'Enter a weight for every exercise.');
-          return null;
-        }
-        final reps = <int>[];
-        for (final controller in _reps[exercise.exercise]!) {
-          final value = int.tryParse(controller.text.trim());
-          if (value == null || value < 0) {
-            setState(() => _error = 'Enter reps for every set.');
-            return null;
-          }
-          reps.add(value);
-        }
-        return LoggedLift(
-          exercise: exercise.exercise,
-          weightKg: weight,
-          reps: reps,
-        );
+        return null;
       case ExerciseKind.jogging:
-        final minutes = int.tryParse(_minutes[exercise.exercise]!.text.trim());
+        final duration = _durations[exercise.exercise] ?? 0;
         final speed = tryParseKg(_speeds[exercise.exercise]!.text);
-        if (minutes == null || minutes <= 0) {
-          setState(() => _error = 'Enter the minutes.');
+        if (duration <= 0) {
+          setState(() => _error = 'Enter a duration.');
           return null;
         }
         if (speed == null) {
@@ -260,8 +395,9 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
           exercise: exercise.exercise,
           weightKg: 0,
           reps: const [],
+          targetReps: exercise.targetReps,
           speedKmh: speed,
-          durationSeconds: minutes * 60,
+          durationSeconds: duration,
         );
       case ExerciseKind.sprinting:
         if (exercise.plan.isEmpty) {
@@ -277,39 +413,48 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
           exercise: exercise.exercise,
           weightKg: 0,
           reps: const [],
+          targetReps: exercise.targetReps,
           intervals: intervals,
         );
     }
   }
 
-  List<Widget> _fields(LogExerciseSeed exercise) {
+  List<Widget> _fields(LogFormData form, LogExerciseSeed exercise) {
+    final s = context.s;
     switch (exercise.exercise.kind) {
       case ExerciseKind.strength:
+        final drafts = _sets[exercise.exercise] ?? const <_SetDraft>[];
         return [
-          _numberField(
-            controller: _weights[exercise.exercise]!,
-            label: 'Weight (kg)',
-            decimal: true,
-          ),
-          const SizedBox(height: 8),
-          for (var index = 0; index < exercise.sets; index++) ...[
-            _numberField(
-              controller: _reps[exercise.exercise]![index],
-              label: 'Set ${index + 1} reps',
+          for (var index = 0; index < drafts.length; index++)
+            StrengthSetRow(
+              exerciseKey: exercise.exercise.storageKey,
+              setIndex: index,
+              label: strengthSetLabel(
+                drafts[index].displayKg,
+                drafts[index].displayReps,
+              ),
+              placeholder: !drafts[index].edited && !drafts[index].done,
+              done: drafts[index].done,
+              onEdit: () => _editSet(form, exercise, index),
+              onToggle: () => _toggleSet(form, exercise, index),
             ),
-            const SizedBox(height: 8),
-          ],
         ];
       case ExerciseKind.jogging:
         return [
-          _numberField(
-            controller: _minutes[exercise.exercise]!,
-            label: 'Minutes',
+          DurationField(
+            label: s.text('Duration'),
+            seconds: (_durations[exercise.exercise] ?? 0) == 0
+                ? null
+                : _durations[exercise.exercise],
+            maxMinutes: jogMaxMinutes,
+            onChanged: (seconds) {
+              setState(() => _durations[exercise.exercise] = seconds ?? 0);
+            },
           ),
           const SizedBox(height: 8),
           _numberField(
             controller: _speeds[exercise.exercise]!,
-            label: 'Speed (km/h)',
+            label: s.text('Speed (km/h)'),
             decimal: true,
           ),
           const SizedBox(height: 8),
@@ -318,8 +463,8 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
         final done = _completed[exercise.exercise] != null;
         return [
           if (exercise.plan.isEmpty)
-            const Text(
-              'Add sprint intervals in the workout.',
+            Text(
+              s.text('Add sprint intervals in the workout.'),
               textAlign: TextAlign.center,
             )
           else
@@ -327,12 +472,12 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  sprintObjective(exercise.plan[index], index),
+                  s.sprintLine(exercise.plan[index], index),
                   textAlign: TextAlign.center,
                 ),
               ),
           if (done)
-            const Text('Sprint complete.', textAlign: TextAlign.center),
+            Text(s.text('Sprint complete.'), textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.center,
@@ -340,7 +485,7 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
                 ? const SizedBox.shrink()
                 : FilledButton(
                     onPressed: () => _openTimer(exercise),
-                    child: Text(done ? 'Run again' : 'Start'),
+                    child: Text(done ? s.text('Run again') : s.text('Start')),
                   ),
           ),
           const SizedBox(height: 8),
@@ -369,12 +514,22 @@ Widget _numberField({
   );
 }
 
-String _unavailableMessage(TodayView? today) {
-  return switch (today) {
-    null || TodayNone() => 'No current routine.',
-    TodayRest() => 'Rest',
-    TodayNoSession() => 'This plan has no session today.',
-    TodayNeedsWorkout() => 'Choose a workout for today.',
-    TodayWorkout() => 'Log session',
-  };
+class _SetDraft {
+  _SetDraft.fromSeed(StrengthSet set)
+    : placeholderKg = set.placeholderKg,
+      placeholderReps = set.placeholderReps,
+      weight = set.loggedKg,
+      reps = set.loggedReps,
+      done = set.done,
+      edited = set.done;
+
+  final double placeholderKg;
+  final int placeholderReps;
+  double? weight;
+  int? reps;
+  bool done;
+  bool edited;
+
+  double get displayKg => weight ?? placeholderKg;
+  int get displayReps => reps ?? placeholderReps;
 }

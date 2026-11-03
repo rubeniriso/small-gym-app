@@ -45,3 +45,24 @@ int? templateSequenceIndex(DateTime anchorMonday, DateTime day) {
   final week = calendarDaysBetween(dateOnly(anchorMonday), current) ~/ 7;
   return week * 3 + dayOffset;
 }
+
+/// Zero-based index of [day] in a pattern of [length] that begins on [start].
+///
+/// Day 1 is [start]. Later dates walk the sequence, and the day after the
+/// last entry is day 1 again. Dates before [start] stay on that same cycle.
+///
+/// A Monday start and five days (Push, Pull, Legs, Rest, Rest) is Push,
+/// Pull, and Legs on Monday–Wednesday, Rest on Thursday and Friday, then
+/// Push again on Saturday.
+int patternIndex({
+  required DateTime start,
+  required DateTime day,
+  required int length,
+}) {
+  if (length <= 0) {
+    throw ArgumentError('Add a day to the pattern.');
+  }
+  final offset = calendarDaysBetween(dateOnly(start), dateOnly(day));
+  final remainder = offset % length;
+  return remainder < 0 ? remainder + length : remainder;
+}

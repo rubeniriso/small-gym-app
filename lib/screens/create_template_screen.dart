@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gym_app/domain/dates.dart';
 import 'package:gym_app/domain/exercise.dart';
 import 'package:gym_app/domain/progression.dart';
+import 'package:gym_app/l10n/app_strings.dart';
 import 'package:gym_app/providers.dart';
 
 class CreateTemplateScreen extends ConsumerStatefulWidget {
@@ -38,7 +39,7 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
     final now = ref.read(clockProvider)();
     final picked = await showDatePicker(
       context: context,
-      helpText: 'Week 1 Monday',
+      helpText: context.s.text('Week 1 Monday'),
       initialDate: _anchor ?? upcomingMonday(now),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
@@ -89,9 +90,10 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
       }
       setState(() {
         _saving = false;
-        _error = error.message is String
-            ? error.message as String
-            : 'Could not create the routine.';
+        _error = context.s.errorMessage(
+          error,
+          fallback: 'Could not create the routine.',
+        );
       });
       return;
     }
@@ -104,13 +106,16 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final s = context.s;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('12-week template', style: theme.textTheme.headlineSmall),
+        Text(s.text('12-week template'), style: theme.textTheme.headlineSmall),
         const SizedBox(height: 8),
         Text(
-          'Workout A and Workout B alternate on Monday, Wednesday, and Friday for 12 weeks.',
+          s.text(
+            'Workout A and Workout B alternate on Monday, Wednesday, and Friday for 12 weeks.',
+          ),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -118,9 +123,9 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
         const SizedBox(height: 16),
         TextField(
           controller: _name,
-          decoration: const InputDecoration(
-            labelText: 'Name',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: s.text('Name'),
+            border: const OutlineInputBorder(),
           ),
           textInputAction: TextInputAction.next,
         ),
@@ -128,17 +133,17 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
         OutlinedButton(
           onPressed: _pickMonday,
           child: Text(
-            _anchor == null ? 'Choose a Monday' : formatLongDate(_anchor!),
+            _anchor == null ? s.text('Choose a Monday') : s.longDate(_anchor!),
           ),
         ),
         const SizedBox(height: 24),
-        Text('Starting weights', style: theme.textTheme.titleMedium),
+        Text(s.text('Starting weights'), style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         for (final exercise in Exercise.strongLifts) ...[
           TextField(
             controller: _weights[exercise],
             decoration: InputDecoration(
-              labelText: exercise.label,
+              labelText: s.exerciseName(exercise),
               suffixText: 'kg',
               border: const OutlineInputBorder(),
             ),
@@ -150,12 +155,15 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
           const SizedBox(height: 12),
         ],
         if (_error != null) ...[
-          Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+          Text(
+            s.text(_error!),
+            style: TextStyle(color: theme.colorScheme.error),
+          ),
           const SizedBox(height: 12),
         ],
         FilledButton(
           onPressed: _saving ? null : _submit,
-          child: const Text('Create routine'),
+          child: Text(s.text('Create routine')),
         ),
       ],
     );

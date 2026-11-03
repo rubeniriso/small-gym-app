@@ -23,7 +23,24 @@ class Routines extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Monday a 12-week template starts. A custom pattern stores its start
+  /// date here instead, and that date does not have to be a Monday.
   TextColumn get anchorMonday => text().nullable()();
+
+  /// `static` follows the week. `dynamic` is chosen each day.
+  TextColumn get kind => text().withDefault(const Constant('static'))();
+  BoolColumn get incrementsEnabled =>
+      boolean().withDefault(const Constant(true))();
+
+  /// Added after a finished session. Zero adds nothing.
+  RealColumn get incrementAmount => real().withDefault(const Constant(2.5))();
+
+  /// `kg` adds that many kilograms. `percent` adds that share of the weight.
+  TextColumn get incrementUnit => text().withDefault(const Constant('kg'))();
+
+  /// Default rest between strength sets, in seconds.
+  IntColumn get restSeconds => integer().withDefault(const Constant(90))();
 }
 
 @DataClassName('Workout')
@@ -43,8 +60,20 @@ class WorkoutExercises extends Table {
   IntColumn get reps => integer()();
   TextColumn get exercise => text().map(const ExerciseConverter())();
   RealColumn get targetWeightKg => real().nullable()();
+
+  /// Jogging length in seconds.
+  ///
+  /// Databases created before schema 7 stored whole minutes. That upgrade
+  /// multiplies the stored value by 60.
   IntColumn get targetMinutes => integer().nullable()();
   RealColumn get targetSpeedKmh => real().nullable()();
+
+  /// Overrides the routine rest. Null uses the routine default.
+  IntColumn get restSeconds => integer().nullable()();
+
+  /// Overrides the routine increment. Null uses the routine default.
+  RealColumn get incrementAmount => real().nullable()();
+  TextColumn get incrementUnit => text().nullable()();
 
   @override
   List<Set<Column<Object>>> get uniqueKeys => [
@@ -123,6 +152,31 @@ class ExerciseLogs extends Table {
   IntColumn get sessionId => integer().references(Sessions, #id)();
   TextColumn get exercise => text().map(const ExerciseConverter())();
   RealColumn get weightKg => real()();
+
+  /// Reps this log belongs to, so 4-rep and 8-rep bench stay separate.
+  IntColumn get targetReps => integer().nullable()();
+}
+
+@DataClassName('CustomExercise')
+class CustomExercises extends Table {
+  TextColumn get storageKey => text()();
+  TextColumn get name => text()();
+  TextColumn get muscleGroup => text()();
+  TextColumn get equipment => text()();
+  TextColumn get kind => text().withDefault(const Constant('strength'))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {storageKey};
+}
+
+@DataClassName('DayPick')
+class DayPicks extends Table {
+  IntColumn get routineId => integer().references(Routines, #id)();
+  TextColumn get day => text()();
+  IntColumn get workoutId => integer().references(Workouts, #id)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {routineId, day};
 }
 
 @DataClassName('SetLog')
@@ -131,6 +185,9 @@ class SetLogs extends Table {
   IntColumn get exerciseLogId => integer().references(ExerciseLogs, #id)();
   IntColumn get setIndex => integer()();
   IntColumn get reps => integer()();
+
+  /// Strength sets keep their own weight. Cardio leaves this empty.
+  RealColumn get weightKg => real().nullable()();
 
   /// Jogging and sprinting. Strength leaves these empty.
   RealColumn get speedKmh => real().nullable()();
@@ -151,6 +208,8 @@ class SetLogs extends Table {
     ExerciseLogs,
     SetLogs,
     SprintIntervalTargets,
+    DayPicks,
+    CustomExercises,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -165,7 +224,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -202,6 +261,47 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 4) {
         await migrator.createTable(sprintIntervalTargets);
+      }
+      if (from < 5) {
+        await migrator.addColumn(routines, routines.kind);
+        await migrator.addColumn(routines, routines.incrementsEnabled);
+        await migrator.addColumn(exerciseLogs, exerciseLogs.targetReps);
+        await migrator.createTable(dayPicks);
+      }
+      if (from < 6) {
+        await migrator.addColumn(routines, routines.restSeconds);
+        await migrator.addColumn(
+          workoutExercises,
+          workoutExercises.restSeconds,
+        );
+        await migrator.addColumn(setLogs, setLogs.weightKg);
+      }
+      if (from < 7) {
+        await customStatement('''
+          UPDATE workout_exercises
+          SET target_minutes = target_minutes * 60
+          WHERE target_minutes IS NOT NULL
+        ''');
+      }
+      if (from < 8) {
+        await migrator.addColumn(routines, routines.incrementAmount);
+        await migrator.addColumn(routines, routines.incrementUnit);
+        await migrator.addColumn(
+          workoutExercises,
+          workoutExercises.incrementAmount,
+        );
+        await migrator.addColumn(
+          workoutExercises,
+          workoutExercises.incrementUnit,
+        );
+        await customStatement('''
+          UPDATE routines
+          SET increment_amount = 0
+          WHERE increments_enabled = 0
+        ''');
+      }
+      if (from < 9) {
+        await migrator.createTable(customExercises);
       }
     },
     beforeOpen: (details) async {

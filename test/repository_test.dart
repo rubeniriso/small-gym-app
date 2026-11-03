@@ -4,6 +4,7 @@ import 'package:gym_app/data/gym_repository.dart';
 import 'package:gym_app/domain/dates.dart';
 import 'package:gym_app/domain/exercise.dart';
 import 'package:gym_app/domain/models.dart';
+import 'package:gym_app/domain/routine_kind.dart';
 import 'package:gym_app/domain/schedule.dart';
 import 'package:gym_app/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -446,7 +447,7 @@ void main() {
       exercise: Exercise.jogging,
       sets: 1,
       reps: 1,
-      targetMinutes: 30,
+      targetDurationSeconds: 30 * 60,
       targetSpeedKmh: 9.5,
     );
     await expectLater(
@@ -641,6 +642,452 @@ void main() {
     );
     expect(other.series.single.points.single.value, 40);
   });
+
+  test('bench streams stay split by target reps', () async {
+    final repository = await _open();
+    final id = await repository.createRoutine('Push');
+    final heavy = await repository.createWorkout(
+      routineId: id,
+      name: 'Volume',
+      linkWeekday: DateTime.monday,
+    );
+    final light = await repository.createWorkout(
+      routineId: id,
+      name: 'Heavy',
+      linkWeekday: DateTime.wednesday,
+    );
+    await repository.addExercise(
+      workoutId: heavy,
+      exercise: Exercise.benchPress,
+      sets: 4,
+      reps: 8,
+      targetWeightKg: 60,
+    );
+    await repository.addExercise(
+      workoutId: light,
+      exercise: Exercise.benchPress,
+      sets: 6,
+      reps: 4,
+      targetWeightKg: 70,
+    );
+    await repository.logSession(
+      routineId: id,
+      loggedOn: anchor,
+      workoutId: heavy,
+      lifts: [
+        LoggedLift(
+          exercise: Exercise.benchPress,
+          weightKg: 60,
+          reps: const [8, 8, 8, 8],
+          targetReps: 8,
+        ),
+      ],
+    );
+    await repository.logSession(
+      routineId: id,
+      loggedOn: DateTime(2026, 11, 4),
+      workoutId: light,
+      lifts: [
+        LoggedLift(
+          exercise: Exercise.benchPress,
+          weightKg: 70,
+          reps: const [4, 4, 4, 4, 4, 4],
+          targetReps: 4,
+        ),
+      ],
+    );
+
+    final rows = await repository.routineProgress(id);
+    expect(rows.map((row) => row.title), [
+      'Bench Press · 8 reps',
+      'Bench Press · 4 reps',
+    ]);
+    final eights = await repository.exerciseProgress(
+      id,
+      Exercise.benchPress,
+      targetReps: 8,
+    );
+    final fours = await repository.exerciseProgress(
+      id,
+      Exercise.benchPress,
+      targetReps: 4,
+    );
+    expect(eights.series.single.points.map((point) => point.value), [60]);
+    expect(fours.series.single.points.map((point) => point.value), [70]);
+    expect(
+      await repository.prescribedWeight(
+        routineId: id,
+        exercise: Exercise.benchPress,
+        day: DateTime(2026, 11, 9),
+        targetReps: 8,
+        targetWeightKg: 60,
+      ),
+      62.5,
+    );
+    expect(
+      await repository.prescribedWeight(
+        routineId: id,
+        exercise: Exercise.benchPress,
+        day: DateTime(2026, 11, 11),
+        targetReps: 4,
+        targetWeightKg: 70,
+      ),
+      70,
+    );
+  });
+
+  test('increments can stay off for a workout target', () async {
+    final repository = await _open();
+    final id = await repository.createRoutine('Push');
+    await repository.setIncrement(
+      id,
+      const WeightIncrement(unit: IncrementUnit.kilograms, amount: 0),
+    );
+    final workout = await repository.createWorkout(
+      routineId: id,
+      name: 'Push',
+      linkWeekday: DateTime.monday,
+    );
+    await repository.addExercise(
+      workoutId: workout,
+      exercise: Exercise.benchPress,
+      sets: 5,
+      reps: 5,
+      targetWeightKg: 60,
+    );
+    await repository.logSession(
+      routineId: id,
+      loggedOn: anchor,
+      workoutId: workout,
+      lifts: [
+        LoggedLift(
+          exercise: Exercise.benchPress,
+          weightKg: 60,
+          reps: const [5, 5, 5, 5, 5],
+          targetReps: 5,
+        ),
+      ],
+    );
+    final next = await repository.loadDay(id, DateTime(2026, 11, 9));
+    final bench = (next as TodayWorkout).exercises.single;
+    expect(bench.weightKg, 60);
+  });
+
+  test('an exercise increment overrides the routine step', () async {
+    final repository = await _open();
+    final id = await repository.createRoutine('Push');
+    await repository.setIncrement(
+      id,
+      const WeightIncrement(unit: IncrementUnit.percent, amount: 10),
+    );
+    final workout = await repository.createWorkout(
+      routineId: id,
+      name: 'Push',
+      linkWeekday: DateTime.monday,
+    );
+    await repository.addExercise(
+      workoutId: workout,
+      exercise: Exercise.benchPress,
+      sets: 5,
+      reps: 5,
+      targetWeightKg: 60,
+      increment: const WeightIncrement(
+        unit: IncrementUnit.kilograms,
+        amount: 5,
+      ),
+    );
+    await repository.addExercise(
+      workoutId: workout,
+      exercise: Exercise.squat,
+      sets: 5,
+      reps: 5,
+      targetWeightKg: 100,
+    );
+    await repository.logSession(
+      routineId: id,
+      loggedOn: anchor,
+      workoutId: workout,
+      lifts: [
+        _lift(Exercise.benchPress, 60, [5, 5, 5, 5, 5]),
+        _lift(Exercise.squat, 100, [5, 5, 5, 5, 5]),
+      ],
+    );
+    final next = await repository.loadDay(id, DateTime(2026, 11, 9));
+    final exercises = (next as TodayWorkout).exercises;
+    final bench = exercises.singleWhere(
+      (exercise) => exercise.exercise == Exercise.benchPress,
+    );
+    final squat = exercises.singleWhere(
+      (exercise) => exercise.exercise == Exercise.squat,
+    );
+    expect(bench.weightKg, 65);
+    expect(squat.weightKg, 110);
+  });
+
+  test('a dynamic routine can skip ahead to any workout', () async {
+    final repository = await _open();
+    final id = await repository.createRoutine(
+      'Split',
+      kind: RoutineKind.dynamicDay,
+    );
+    final ids = <int>[];
+    for (var index = 1; index <= 4; index++) {
+      ids.add(
+        await repository.createWorkout(routineId: id, name: 'Workout $index'),
+      );
+    }
+    await repository.pickWorkout(routineId: id, day: anchor, workoutId: ids[0]);
+    expect(
+      (await repository.loadDay(id, anchor) as TodayWorkout).workoutName,
+      'Workout 1',
+    );
+    await repository.logSession(
+      routineId: id,
+      loggedOn: anchor,
+      workoutId: ids[0],
+      lifts: const [],
+    );
+    final wednesday = DateTime(2026, 11, 4);
+    expect(
+      (await repository.loadDay(id, wednesday) as TodayWorkout).workoutName,
+      'Workout 2',
+    );
+    await repository.pickWorkout(
+      routineId: id,
+      day: wednesday,
+      workoutId: ids[0],
+    );
+    final skipped = await repository.loadDay(id, wednesday) as TodayWorkout;
+    expect(skipped.workoutName, 'Workout 1');
+    expect(skipped.choices, hasLength(4));
+
+    final logged = await repository.loadDay(id, anchor) as TodayWorkout;
+    expect(logged.logged, isTrue);
+    expect(logged.workoutName, 'Workout 1');
+
+    await repository.convertToDynamic(id);
+    final details = await repository.routineDetails(id);
+    expect(details.kind, RoutineKind.dynamicDay);
+  });
+
+  test('a static routine becomes dynamic and drops the week', () async {
+    final repository = await _open();
+    final id = await repository.createRoutine('Week');
+    await repository.createWorkout(
+      routineId: id,
+      name: 'Push',
+      linkWeekday: DateTime.monday,
+    );
+    expect(
+      await repository.loadDay(id, DateTime(2026, 11, 3)),
+      isA<TodayRest>(),
+    );
+    await repository.convertToDynamic(id);
+    final tuesday = await repository.loadDay(id, DateTime(2026, 11, 3));
+    expect((tuesday as TodayWorkout).workoutName, 'Push');
+  });
+
+  test('changing type keeps the workouts', () async {
+    final repository = await _open();
+    final id = await repository.createRoutine('Push');
+    final workout = await repository.createWorkout(
+      routineId: id,
+      name: 'Bench',
+      linkWeekday: DateTime.monday,
+    );
+    await repository.addExercise(
+      workoutId: workout,
+      exercise: Exercise.benchPress,
+      sets: 3,
+      reps: 8,
+      targetWeightKg: 40,
+    );
+
+    await repository.setRoutineKind(id, RoutineKind.customPattern);
+    var details = await repository.routineDetails(id);
+    expect(details.kind, RoutineKind.customPattern);
+    expect(details.workouts.map((item) => item.name), ['Bench']);
+    expect(details.pattern.first.workoutId, workout);
+    expect(
+      (await repository.workoutDetails(workout)).exercises.single.exercise,
+      Exercise.benchPress,
+    );
+
+    await repository.setRoutineKind(id, RoutineKind.dynamicDay);
+    details = await repository.routineDetails(id);
+    expect(details.kind, RoutineKind.dynamicDay);
+    expect(details.workouts.single.name, 'Bench');
+    expect(
+      (await repository.loadDay(id, anchor) as TodayWorkout).workoutName,
+      'Bench',
+    );
+
+    await repository.setRoutineKind(id, RoutineKind.staticWeek);
+    details = await repository.routineDetails(id);
+    expect(details.kind, RoutineKind.staticWeek);
+    expect(details.workouts.single.name, 'Bench');
+    expect(details.days[DateTime.monday - 1].workoutId, workout);
+    expect(
+      (await repository.workoutDetails(workout))
+          .exercises
+          .single
+          .targetWeightKg,
+      40,
+    );
+  });
+
+  test('a template exports and imports without its sessions', () async {
+    final repository = await _open();
+    final original = await repository.createFromTemplate(
+      name: 'StrongLifts',
+      anchorMonday: anchor,
+      startWeightsKg: _weights(),
+    );
+    await repository.logSession(
+      routineId: original,
+      loggedOn: anchor,
+      workoutId: ((await repository.loadDay(
+        original,
+        anchor,
+      )) as TodayWorkout).workoutId,
+      lifts: [
+        _lift(Exercise.squat, 20, [5, 5, 5, 5, 5]),
+      ],
+    );
+    final copy = await repository.importRoutine(
+      await repository.exportRoutine(original),
+    );
+    final details = await repository.routineDetails(copy);
+    expect(details.name, 'StrongLifts');
+    expect(details.kind, RoutineKind.staticWeek);
+    expect(details.increment.unit, IncrementUnit.kilograms);
+    expect(details.increment.amount, 2.5);
+    expect(details.isTemplate, isTrue);
+    expect(details.workouts.map((workout) => workout.name), [
+      'Workout A',
+      'Workout B',
+    ]);
+    final monday = await repository.loadDay(copy, anchor) as TodayWorkout;
+    expect(monday.workoutName, 'Workout A');
+    expect(monday.logged, isFalse);
+    expect(monday.exercises.map((exercise) => exercise.exercise), [
+      Exercise.squat,
+      Exercise.benchPress,
+      Exercise.barbellRow,
+    ]);
+    final days = await repository.activityDays(original, anchor);
+    expect(days, hasLength(12 * 7));
+    expect(days.first.date, addCalendarDays(anchor, -11 * 7));
+    expect(days.last.date, addCalendarDays(anchor, 6));
+    expect(
+      days.singleWhere((day) => day.date == anchor).workoutName,
+      'Workout A',
+    );
+    expect(
+      days.singleWhere((day) => day.date == DateTime(2026, 11, 3)).logged,
+      isFalse,
+    );
+  });
+
+  test('a swapped exercise stays on the planned rep target', () async {
+    final repository = await _open();
+    final id = await repository.createRoutine('Push');
+    final workout = await repository.createWorkout(
+      routineId: id,
+      name: 'Push',
+      linkWeekday: DateTime.monday,
+    );
+    await repository.addExercise(
+      workoutId: workout,
+      exercise: Exercise.benchPress,
+      sets: 4,
+      reps: 8,
+      targetWeightKg: 60,
+    );
+    await repository.logSession(
+      routineId: id,
+      loggedOn: anchor,
+      workoutId: workout,
+      lifts: [
+        LoggedLift(
+          exercise: Exercise.inclineBenchPress,
+          weightKg: 40,
+          reps: const [8, 8, 8, 8],
+          targetReps: 8,
+        ),
+      ],
+    );
+    final form = await repository.loadLogForm(anchor, routineId: id);
+    expect(form, isNotNull);
+    expect(form!.exercises.single.exercise, Exercise.benchPress);
+    expect(form.exercises.single.substitute, Exercise.inclineBenchPress);
+    expect(form.exercises.single.weightKg, 40);
+    expect(form.exercises.single.targetReps, 8);
+  });
+
+  test(
+    'a strength set is stored on its own and keeps the placeholder',
+    () async {
+      final repository = await _open();
+      final id = await repository.createRoutine('Push');
+      expect((await repository.routineDetails(id)).restSeconds, 90);
+      await repository.setRestSeconds(id, 75);
+      final workout = await repository.createWorkout(
+        routineId: id,
+        name: 'Push',
+        linkWeekday: DateTime.monday,
+      );
+      await repository.addExercise(
+        workoutId: workout,
+        exercise: Exercise.benchPress,
+        sets: 2,
+        reps: 8,
+        targetWeightKg: 60,
+        restSeconds: 45,
+      );
+      await repository.saveStrengthSet(
+        routineId: id,
+        loggedOn: anchor,
+        workoutId: workout,
+        exercise: Exercise.benchPress,
+        targetReps: 8,
+        setIndex: 0,
+        weightKg: 60,
+        reps: 8,
+      );
+      await repository.saveStrengthSet(
+        routineId: id,
+        loggedOn: anchor,
+        workoutId: workout,
+        exercise: Exercise.benchPress,
+        targetReps: 8,
+        setIndex: 1,
+        weightKg: 62.5,
+        reps: 6,
+      );
+      final logged = await repository.sessionLifts(id, anchor);
+      expect(logged.single.reps, [8, 6]);
+      expect(logged.single.setWeights, [60, 62.5]);
+      expect(logged.single.weightKg, 62.5);
+      final home = await repository.loadDay(id, anchor) as TodayWorkout;
+      expect(home.exercises.single.restSeconds, 45);
+      final sets = (await repository.loadLogForm(
+        anchor,
+        routineId: id,
+      ))!.exercises.single.strengthSets;
+      expect(sets.map((set) => set.done), [true, true]);
+      expect(sets.first.displayKg, 60);
+      await repository.clearStrengthSet(
+        routineId: id,
+        loggedOn: anchor,
+        exercise: Exercise.benchPress,
+        setIndex: 1,
+      );
+      final left = await repository.sessionLifts(id, anchor);
+      expect(left.single.reps, [8]);
+      expect(left.single.weightKg, 60);
+    },
+  );
 }
 
 Future<GymRepository> _open() async {

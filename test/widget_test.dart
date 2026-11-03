@@ -73,19 +73,19 @@ void main() {
 
     await tester.tap(find.byTooltip('Open menu'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Light'));
+    await tester.tap(find.byKey(const Key('theme-light')));
     await tester.pumpAndSettle();
 
     expect(themeMode.mode, ThemeMode.light);
     expect(brightness(), Brightness.light);
 
-    await tester.tap(find.text('Dark'));
+    await tester.tap(find.byKey(const Key('theme-dark')));
     await tester.pumpAndSettle();
 
     expect(themeMode.mode, ThemeMode.dark);
     expect(brightness(), Brightness.dark);
 
-    await tester.tap(find.text('System'));
+    await tester.tap(find.byKey(const Key('theme-system')));
     await tester.pumpAndSettle();
 
     expect(themeMode.mode, ThemeMode.system);

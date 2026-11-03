@@ -12,12 +12,21 @@ double sprintRingSweep(double progress) {
   return 2 * math.pi * clamped;
 }
 
-String formatSprintDuration(LoggedInterval interval) {
-  if (interval.unit == DurationUnit.minutes &&
-      interval.durationSeconds % 60 == 0) {
-    return '${interval.durationSeconds ~/ 60} min';
+String formatDuration(int totalSeconds) {
+  final safe = totalSeconds < 0 ? 0 : totalSeconds;
+  final minutes = safe ~/ 60;
+  final seconds = safe % 60;
+  if (minutes == 0) {
+    return '$seconds s';
   }
-  return '${interval.durationSeconds} s';
+  if (seconds == 0) {
+    return '$minutes min';
+  }
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
+String formatSprintDuration(LoggedInterval interval) {
+  return formatDuration(interval.durationSeconds);
 }
 
 String sprintObjective(LoggedInterval interval, int index) {
@@ -28,12 +37,12 @@ String sprintObjective(LoggedInterval interval, int index) {
 String describePrescription(PrescribedExercise exercise) {
   switch (exercise.exercise.kind) {
     case ExerciseKind.jogging:
-      final minutes = exercise.targetMinutes;
+      final duration = exercise.targetDurationSeconds;
       final speed = exercise.targetSpeedKmh;
-      if (minutes != null && speed != null) {
-        return '$minutes min · ${formatKg(speed)} km/h';
+      if (duration != null && speed != null) {
+        return '${formatDuration(duration)} · ${formatKg(speed)} km/h';
       }
-      return 'Minutes · km/h';
+      return 'Duration · km/h';
     case ExerciseKind.sprinting:
       final count = exercise.intervals.isEmpty
           ? exercise.sets

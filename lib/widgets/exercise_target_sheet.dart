@@ -3,22 +3,30 @@ import 'package:flutter/services.dart';
 import 'package:gym_app/domain/exercise.dart';
 import 'package:gym_app/domain/models.dart';
 import 'package:gym_app/domain/progression.dart';
+import 'package:gym_app/l10n/app_strings.dart';
+import 'package:gym_app/widgets/duration_picker.dart';
+import 'package:gym_app/widgets/gym_icons.dart';
+import 'package:gym_app/widgets/increment_picker.dart';
 
 class ExerciseTargets {
   const ExerciseTargets({
     required this.sets,
     required this.reps,
     this.weightKg,
-    this.minutes,
+    this.durationSeconds,
     this.speedKmh,
+    this.restSeconds,
+    this.increment,
     this.intervals = const [],
   });
 
   final int sets;
   final int reps;
   final double? weightKg;
-  final int? minutes;
+  final int? durationSeconds;
   final double? speedKmh;
+  final int? restSeconds;
+  final WeightIncrement? increment;
   final List<LoggedInterval> intervals;
 }
 
@@ -41,37 +49,17 @@ Future<ExerciseTargets?> showExerciseTargets(
 }
 
 class _Draft {
-  _Draft({String duration = '', String speed = ''})
-    : duration = TextEditingController(text: duration),
-      speed = TextEditingController(text: speed);
+  _Draft({String speed = ''}) : speed = TextEditingController(text: speed);
 
   _Draft.fromInterval(LoggedInterval interval)
-    : duration = TextEditingController(text: _amount(interval)),
-      speed = TextEditingController(text: formatKg(interval.speedKmh)),
-      unit = _unit(interval);
+    : seconds = interval.durationSeconds,
+      speed = TextEditingController(text: formatKg(interval.speedKmh));
 
-  final TextEditingController duration;
+  int seconds = 0;
   final TextEditingController speed;
-  DurationUnit unit = DurationUnit.seconds;
 
   void dispose() {
-    duration.dispose();
     speed.dispose();
-  }
-
-  static String _amount(LoggedInterval interval) {
-    if (_unit(interval) == DurationUnit.minutes) {
-      return '${interval.durationSeconds ~/ 60}';
-    }
-    return '${interval.durationSeconds}';
-  }
-
-  static DurationUnit _unit(LoggedInterval interval) {
-    if (interval.unit == DurationUnit.minutes &&
-        interval.durationSeconds % 60 == 0) {
-      return DurationUnit.minutes;
-    }
-    return DurationUnit.seconds;
   }
 }
 
@@ -94,8 +82,10 @@ class _TargetSheetState extends State<_TargetSheet> {
   var _sets = 5;
   var _reps = 5;
   final _weight = TextEditingController();
-  final _minutes = TextEditingController();
   final _speed = TextEditingController();
+  int? _rest;
+  WeightIncrement? _increment;
+  int _duration = 0;
   late final List<_Draft> _drafts;
   final _retired = <_Draft>[];
   String? _error;
@@ -118,7 +108,6 @@ class _TargetSheetState extends State<_TargetSheet> {
   @override
   void dispose() {
     _weight.dispose();
-    _minutes.dispose();
     _speed.dispose();
     for (final draft in [..._drafts, ..._retired]) {
       draft.dispose();
@@ -136,13 +125,18 @@ class _TargetSheetState extends State<_TargetSheet> {
         }
         Navigator.pop(
           context,
-          ExerciseTargets(sets: _sets, reps: _reps, weightKg: weight),
+          ExerciseTargets(
+            sets: _sets,
+            reps: _reps,
+            weightKg: weight,
+            restSeconds: _rest,
+            increment: _increment,
+          ),
         );
       case ExerciseKind.jogging:
-        final minutes = int.tryParse(_minutes.text.trim());
         final speed = tryParseKg(_speed.text);
-        if (minutes == null || minutes < 1) {
-          setState(() => _error = 'Enter the minutes.');
+        if (_duration < 1) {
+          setState(() => _error = 'Enter a duration.');
           return;
         }
         if (speed == null) {
@@ -151,14 +145,18 @@ class _TargetSheetState extends State<_TargetSheet> {
         }
         Navigator.pop(
           context,
-          ExerciseTargets(sets: 1, reps: 1, minutes: minutes, speedKmh: speed),
+          ExerciseTargets(
+            sets: 1,
+            reps: 1,
+            durationSeconds: _duration,
+            speedKmh: speed,
+          ),
         );
       case ExerciseKind.sprinting:
         final intervals = <LoggedInterval>[];
         for (final draft in _drafts) {
-          final amount = int.tryParse(draft.duration.text.trim());
           final speed = tryParseKg(draft.speed.text);
-          if (amount == null || amount < 1) {
+          if (draft.seconds < 1) {
             setState(() => _error = 'Enter a duration for every interval.');
             return;
           }
@@ -169,10 +167,10 @@ class _TargetSheetState extends State<_TargetSheet> {
           intervals.add(
             LoggedInterval(
               speedKmh: speed,
-              durationSeconds: draft.unit == DurationUnit.minutes
-                  ? amount * 60
-                  : amount,
-              unit: draft.unit,
+              durationSeconds: draft.seconds,
+              unit: draft.seconds % 60 == 0
+                  ? DurationUnit.minutes
+                  : DurationUnit.seconds,
             ),
           );
         }
@@ -190,6 +188,7 @@ class _TargetSheetState extends State<_TargetSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final s = context.s;
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
     final maxList = MediaQuery.sizeOf(context).height * 0.45;
     return Padding(
@@ -198,12 +197,15 @@ class _TargetSheetState extends State<_TargetSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(widget.exercise.label, style: theme.textTheme.titleLarge),
+          Text(
+            s.exerciseName(widget.exercise),
+            style: theme.textTheme.titleLarge,
+          ),
           const SizedBox(height: 4),
           Text(
             widget.exercise.kind == ExerciseKind.sprinting
-                ? 'The first interval is the warm-up.'
-                : 'Set the target for this exercise.',
+                ? s.text('The first interval is the warm-up.')
+                : s.text('Set the target for this exercise.'),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -221,7 +223,7 @@ class _TargetSheetState extends State<_TargetSheet> {
                     alignment: Alignment.centerLeft,
                     child: TextButton(
                       onPressed: () => setState(() => _drafts.add(_Draft())),
-                      child: const Text('Add interval'),
+                      child: Text(s.text('Add interval')),
                     ),
                   ),
                 ],
@@ -231,12 +233,15 @@ class _TargetSheetState extends State<_TargetSheet> {
             ..._fields(),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+            Text(
+              s.text(_error!),
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
           ],
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _submit,
-            child: Text(widget.editing ? 'Save' : 'Add'),
+            child: Text(widget.editing ? s.text('Save') : s.text('Add')),
           ),
         ],
       ),
@@ -245,7 +250,8 @@ class _TargetSheetState extends State<_TargetSheet> {
 
   Widget _intervalFields(int index) {
     final draft = _drafts[index];
-    final label = index == 0 ? 'Warm-up' : 'Interval ${index + 1}';
+    final s = context.s;
+    final label = index == 0 ? s.text('Warm-up') : s.intervalLabel(index + 1);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -256,7 +262,7 @@ class _TargetSheetState extends State<_TargetSheet> {
               Expanded(child: Text(label)),
               if (index > 0)
                 IconButton(
-                  tooltip: 'Remove interval',
+                  tooltip: s.text('Remove interval'),
                   onPressed: () {
                     setState(() => _retired.add(_drafts.removeAt(index)));
                   },
@@ -264,38 +270,22 @@ class _TargetSheetState extends State<_TargetSheet> {
                 ),
             ],
           ),
-          TextField(
+          DurationField(
             key: Key('sprint-duration-$index'),
-            controller: draft.duration,
-            decoration: const InputDecoration(
-              labelText: 'Duration',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<DurationUnit>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: DurationUnit.seconds, label: Text('Sec')),
-                ButtonSegment(value: DurationUnit.minutes, label: Text('Min')),
-              ],
-              selected: {draft.unit},
-              onSelectionChanged: (selection) {
-                setState(() => draft.unit = selection.first);
-              },
-            ),
+            label: s.text('Duration'),
+            seconds: draft.seconds == 0 ? null : draft.seconds,
+            maxMinutes: sprintMaxMinutes,
+            onChanged: (seconds) {
+              setState(() => draft.seconds = seconds ?? 0);
+            },
           ),
           const SizedBox(height: 8),
           TextField(
             key: Key('sprint-speed-$index'),
             controller: draft.speed,
-            decoration: const InputDecoration(
-              labelText: 'Speed (km/h)',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: s.text('Speed (km/h)'),
+              border: const OutlineInputBorder(),
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
@@ -308,49 +298,71 @@ class _TargetSheetState extends State<_TargetSheet> {
   }
 
   List<Widget> _fields() {
+    final s = context.s;
     switch (widget.exercise.kind) {
       case ExerciseKind.strength:
         return [
           _CountRow(
-            label: 'Sets',
+            label: s.text('Sets'),
             value: _sets,
             onChanged: (value) => setState(() => _sets = value),
           ),
           _CountRow(
-            label: 'Reps',
+            label: s.text('Reps'),
             value: _reps,
             onChanged: (value) => setState(() => _reps = value),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _weight,
-            decoration: const InputDecoration(
-              labelText: 'Weight (kg)',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: s.text('Weight (kg)'),
+              border: const OutlineInputBorder(),
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
             ],
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              DurationField(
+                label: s.text('Rest'),
+                seconds: _rest,
+                maxMinutes: restMaxMinutes,
+                clearable: true,
+                compact: true,
+                icon: const StopwatchIcon(),
+                onChanged: (seconds) => setState(() => _rest = seconds),
+              ),
+              const SizedBox(width: 16),
+              IncrementField(
+                label: s.text('Weight increments'),
+                increment: _increment,
+                clearable: true,
+                compact: true,
+                onChanged: (increment) =>
+                    setState(() => _increment = increment),
+              ),
+            ],
+          ),
         ];
       case ExerciseKind.jogging:
         return [
-          TextField(
-            controller: _minutes,
-            decoration: const InputDecoration(
-              labelText: 'Minutes',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          DurationField(
+            key: const Key('jogging-duration'),
+            label: s.text('Duration'),
+            seconds: _duration == 0 ? null : _duration,
+            maxMinutes: jogMaxMinutes,
+            onChanged: (seconds) => setState(() => _duration = seconds ?? 0),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _speed,
-            decoration: const InputDecoration(
-              labelText: 'Speed (km/h)',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: s.text('Speed (km/h)'),
+              border: const OutlineInputBorder(),
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
@@ -377,17 +389,21 @@ class _CountRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = context.s;
     return Row(
       children: [
-        SizedBox(width: 88, child: Text(label)),
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 88),
+          child: Text(label),
+        ),
         IconButton(
-          tooltip: 'Fewer ${label.toLowerCase()}',
+          tooltip: s.fewer(label),
           onPressed: value <= 1 ? null : () => onChanged(value - 1),
           icon: const Icon(Icons.remove),
         ),
         SizedBox(width: 24, child: Text('$value', textAlign: TextAlign.center)),
         IconButton(
-          tooltip: 'More ${label.toLowerCase()}',
+          tooltip: s.more(label),
           onPressed: () => onChanged(value + 1),
           icon: const Icon(Icons.add),
         ),

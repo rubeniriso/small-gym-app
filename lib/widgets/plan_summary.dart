@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gym_app/domain/dates.dart';
 import 'package:gym_app/domain/models.dart';
-
-const _weekdayInitials = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+import 'package:gym_app/l10n/app_strings.dart';
 
 class PlanSummary extends StatelessWidget {
   const PlanSummary({super.key, required this.routineId, required this.days});
@@ -14,12 +13,13 @@ class PlanSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final s = context.s;
     final today = days.where((day) => day.isToday).firstOrNull;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _caption(today),
+          s.planCaption(today),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -29,7 +29,7 @@ class PlanSummary extends StatelessWidget {
           for (final day in days) _WeekRow(routineId: routineId, day: day)
         else ...[
           if (today != null) ...[
-            Text('This week', style: theme.textTheme.titleSmall),
+            Text(s.text('This week'), style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
             for (final day in _weekOf(days, today))
               _WeekRow(routineId: routineId, day: day),
@@ -45,23 +45,6 @@ class PlanSummary extends StatelessWidget {
         ],
       ],
     );
-  }
-
-  String _caption(PlanDay? today) {
-    if (today == null) {
-      return 'This plan has no session today.';
-    }
-    if (today.canLog) {
-      final name = today.workoutName ?? 'Workout';
-      return 'Today is $name. Tap a day to see the workout.';
-    }
-    if (today.isRest) {
-      return 'Today is rest. Tap a day to see the workout.';
-    }
-    if (today.needsWorkout) {
-      return 'Choose a workout for today. Tap a day to see the workout.';
-    }
-    return 'This plan has no session today.';
   }
 }
 
@@ -82,12 +65,13 @@ class _WeekRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final title = weekdayLabel(day.date.weekday);
+    final s = context.s;
+    final title = s.weekday(day.date.weekday);
     final detail = day.isRest
-        ? 'Rest'
+        ? s.text('Rest')
         : (day.needsWorkout
-              ? 'Choose a workout'
-              : (day.workoutName ?? 'Workout'));
+              ? s.text('Choose a workout')
+              : s.workoutName(day.workoutName ?? 'Workout'));
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -126,8 +110,10 @@ class _WeekRow extends StatelessWidget {
                 ),
                 Text(
                   day.canLog
-                      ? (day.logged ? 'Edit log' : 'Log session')
-                      : 'View',
+                      ? (day.logged
+                            ? s.text('Edit log')
+                            : s.text('Log session'))
+                      : s.text('View'),
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: scheme.primary,
                   ),
@@ -152,7 +138,7 @@ class _GridHeader extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: 24),
-          for (final label in _weekdayInitials)
+          for (final label in context.s.weekdayInitials)
             Expanded(
               child: Text(label, textAlign: TextAlign.center, style: style),
             ),
@@ -208,8 +194,11 @@ class _GridCell extends StatelessWidget {
     final color = day.isRest
         ? scheme.surfaceContainerHighest
         : (day.logged ? scheme.primaryContainer : scheme.secondaryContainer);
+    final s = context.s;
     return Tooltip(
-      message: day.canLog ? (day.logged ? 'Edit log' : 'Log session') : 'View',
+      message: day.canLog
+          ? (day.logged ? s.text('Edit log') : s.text('Log session'))
+          : s.text('View'),
       child: Material(
         color: color,
         shape: RoundedRectangleBorder(

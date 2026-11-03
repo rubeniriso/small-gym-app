@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:gym_app/domain/models.dart';
 import 'package:gym_app/domain/progression.dart';
 import 'package:gym_app/domain/sprint.dart';
+import 'package:gym_app/l10n/app_strings.dart';
 
 class SprintTimerScreen extends StatefulWidget {
   const SprintTimerScreen({
@@ -85,20 +86,22 @@ class _SprintTimerScreenState extends State<SprintTimerScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final s = context.s;
     final total = widget.intervals.length;
     final index = _phase.intervalIndex;
     final interval = total == 0 ? null : widget.intervals[index];
     final title = switch (_phase.kind) {
-      SprintPhaseKind.grace => 'Get ready',
+      SprintPhaseKind.grace => s.text('Get ready'),
       SprintPhaseKind.idle ||
       SprintPhaseKind.interval ||
-      SprintPhaseKind.done => index == 0 ? 'Warm-up' : 'Interval',
+      SprintPhaseKind.done =>
+        index == 0 ? s.text('Warm-up') : s.text('Interval'),
     };
-    final next = index == 0 ? 'Warm-up' : 'Interval ${index + 1}';
+    final next = index == 0 ? s.text('Warm-up') : s.intervalLabel(index + 1);
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const Text('Sprint'),
+        title: Text(s.text('Sprint')),
         leading: BackButton(onPressed: _stop),
       ),
       body: SafeArea(
@@ -138,7 +141,7 @@ class _SprintTimerScreenState extends State<SprintTimerScreen>
                       const SizedBox(height: 4),
                       if (_phase.kind == SprintPhaseKind.grace)
                         Text(
-                          'Next: $next',
+                          s.nextUp(next),
                           textAlign: TextAlign.center,
                           style: theme.textTheme.titleMedium,
                         ),
@@ -172,10 +175,10 @@ class _SprintTimerScreenState extends State<SprintTimerScreen>
                     if (!_started)
                       FilledButton(
                         onPressed: _start,
-                        child: const Text('Start'),
+                        child: Text(s.text('Start')),
                       )
                     else
-                      TextButton(onPressed: _stop, child: const Text('Stop')),
+                      TextButton(onPressed: _stop, child: Text(s.text('Stop'))),
                   ],
                 ),
               ),

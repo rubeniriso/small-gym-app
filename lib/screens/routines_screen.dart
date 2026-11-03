@@ -1,8 +1,12 @@
 import 'dart:async';
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gym_app/domain/routine_kind.dart';
+import 'package:gym_app/l10n/app_strings.dart';
 import 'package:gym_app/providers.dart';
 import 'package:gym_app/widgets/database_view.dart';
 
@@ -18,7 +22,7 @@ class RoutinesScreen extends ConsumerWidget {
         return Stack(
           children: [
             if (items.isEmpty)
-              const Center(child: Text('No routines yet.'))
+              Center(child: Text(context.s.text('No routines yet.')))
             else
               ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
@@ -31,49 +35,69 @@ class RoutinesScreen extends ConsumerWidget {
                     child: InkWell(
                       onTap: () => context.push('/routines/${item.id}'),
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+                        child: Row(
                           children: [
-                            Text(
-                              item.name,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            if (item.isTemplate)
-                              Text(
-                                '12-week plan',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            if (item.isCurrent)
-                              Text(
-                                'Current',
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.name,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                  if (item.isTemplate)
+                                    Text(
+                                      context.s.text('12-week plan'),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium,
                                     ),
+                                  if (item.kind == RoutineKind.dynamicDay)
+                                    Text(
+                                      context.s.routineKind(
+                                        RoutineKind.dynamicDay,
+                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium,
+                                    ),
+                                  if (item.kind == RoutineKind.customPattern)
+                                    Text(
+                                      context.s.routineKind(
+                                        RoutineKind.customPattern,
+                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium,
+                                    ),
+                                ],
                               ),
-                            Row(
-                              children: [
-                                if (!item.isCurrent)
-                                  TextButton(
-                                    onPressed: () {
+                            ),
+                            IconButton(
+                              onPressed: item.isCurrent
+                                  ? null
+                                  : () {
                                       ref.mutate(
                                         (repository) => repository
                                             .setCurrentRoutine(item.id),
                                       );
                                     },
-                                    child: const Text('Set as current'),
-                                  ),
-                                const Spacer(),
-                                IconButton(
-                                  tooltip: 'Delete routine',
-                                  onPressed: () =>
-                                      _delete(context, ref, item.id),
-                                  icon: const Icon(Icons.delete_outline),
-                                ),
-                              ],
+                              style: IconButton.styleFrom(
+                                disabledForegroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .primary,
+                              ),
+                              icon: Icon(
+                                item.isCurrent ? Icons.star : Icons.star_border,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: context.s.text('Delete routine'),
+                              onPressed: () => _delete(context, ref, item.id),
+                              icon: const Icon(Icons.delete_outline),
                             ),
                           ],
                         ),
@@ -86,10 +110,10 @@ class RoutinesScreen extends ConsumerWidget {
               right: 16,
               bottom: 16 + MediaQuery.paddingOf(context).bottom,
               child: FloatingActionButton.extended(
-                tooltip: 'Create routine',
+                tooltip: context.s.text('Create routine'),
                 onPressed: () => _openCreate(context, ref),
                 icon: const Icon(Icons.add),
-                label: const Text('Create'),
+                label: Text(context.s.text('Create')),
               ),
             ),
           ],
@@ -108,17 +132,24 @@ class RoutinesScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                title: const Text('Empty routine'),
+                title: Text(sheetContext.s.text('Empty routine')),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   unawaited(_createEmpty(context, ref));
                 },
               ),
               ListTile(
-                title: const Text('12-week template'),
+                title: Text(sheetContext.s.text('12-week template')),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   context.push('/routines/new/template');
+                },
+              ),
+              ListTile(
+                title: Text(sheetContext.s.text('Import template')),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  unawaited(_import(context, ref));
                 },
               ),
             ],
@@ -129,14 +160,51 @@ class RoutinesScreen extends ConsumerWidget {
   }
 
   Future<void> _createEmpty(BuildContext context, WidgetRef ref) async {
-    final name = await showDialog<String>(
+    final draft = await showDialog<_DraftRoutine>(
       context: context,
       builder: (context) => const _NewRoutineDialog(),
     );
-    if (name == null || !context.mounted) {
+    if (draft == null || !context.mounted) {
       return;
     }
-    await ref.mutate((repository) => repository.createRoutine(name));
+    await ref.mutate(
+      (repository) => repository.createRoutine(
+        draft.name,
+        kind: draft.kind,
+        patternStart: draft.kind == RoutineKind.customPattern
+            ? ref.read(clockProvider)()
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _import(BuildContext context, WidgetRef ref) async {
+    final source = await showDialog<String>(
+      context: context,
+      builder: (context) => const _ImportDialog(),
+    );
+    if (source == null || !context.mounted) {
+      return;
+    }
+    try {
+      final id = await ref.mutate(
+        (repository) => repository.importRoutine(source),
+      );
+      if (!context.mounted) {
+        return;
+      }
+      context.push('/routines/$id');
+    } on FormatException {
+      if (!context.mounted) {
+        return;
+      }
+      _showMessage(context, context.s.text('That file is not a template.'));
+    } on ArgumentError catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      _showMessage(context, context.s.errorMessage(error));
+    }
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref, int id) async {
@@ -144,15 +212,15 @@ class RoutinesScreen extends ConsumerWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Delete this routine?'),
+          title: Text(context.s.text('Delete this routine?')),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: Text(context.s.text('Cancel')),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete'),
+              child: Text(context.s.text('Delete')),
             ),
           ],
         );
@@ -165,6 +233,13 @@ class RoutinesScreen extends ConsumerWidget {
   }
 }
 
+class _DraftRoutine {
+  const _DraftRoutine(this.name, this.kind);
+
+  final String name;
+  final RoutineKind kind;
+}
+
 class _NewRoutineDialog extends StatefulWidget {
   const _NewRoutineDialog();
 
@@ -174,6 +249,7 @@ class _NewRoutineDialog extends StatefulWidget {
 
 class _NewRoutineDialogState extends State<_NewRoutineDialog> {
   final _name = TextEditingController();
+  var _kind = RoutineKind.staticWeek;
   String? _error;
 
   @override
@@ -188,27 +264,122 @@ class _NewRoutineDialogState extends State<_NewRoutineDialog> {
       setState(() => _error = 'Enter a name.');
       return;
     }
-    Navigator.pop(context, name);
+    Navigator.pop(context, _DraftRoutine(name, _kind));
   }
 
   @override
   Widget build(BuildContext context) {
+    final s = context.s;
     return AlertDialog(
-      title: const Text('New routine'),
-      content: TextField(
-        controller: _name,
-        autofocus: true,
-        decoration: InputDecoration(labelText: 'Name', errorText: _error),
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => _submit(),
+      title: Text(s.text('New routine')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _name,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: s.text('Name'),
+                errorText: _error == null ? null : s.text(_error!),
+              ),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 16),
+            Text(s.text('Type'), style: Theme.of(context).textTheme.labelLarge),
+            for (final kind in RoutineKind.values)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                leading: Icon(
+                  _kind == kind
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                ),
+                title: Text(s.routineKind(kind)),
+                onTap: () => setState(() => _kind = kind),
+              ),
+            if (_kind == RoutineKind.customPattern)
+              Text(
+                s.text('Numbered days repeat on the calendar.'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(s.text('Cancel')),
         ),
-        TextButton(onPressed: _submit, child: const Text('Create')),
+        TextButton(onPressed: _submit, child: Text(s.text('Create'))),
       ],
     );
   }
+}
+
+class _ImportDialog extends StatefulWidget {
+  const _ImportDialog();
+
+  @override
+  State<_ImportDialog> createState() => _ImportDialogState();
+}
+
+class _ImportDialogState extends State<_ImportDialog> {
+  final _source = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _source.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final source = _source.text.trim();
+    if (source.isEmpty) {
+      setState(() => _error = 'Paste a template.');
+      return;
+    }
+    try {
+      jsonDecode(source);
+    } on FormatException {
+      setState(() => _error = 'That file is not a template.');
+      return;
+    }
+    Navigator.pop(context, source);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    return AlertDialog(
+      title: Text(s.text('Import template')),
+      content: TextField(
+        controller: _source,
+        autofocus: true,
+        minLines: 4,
+        maxLines: 8,
+        decoration: InputDecoration(
+          labelText: s.text('Template JSON'),
+          errorText: _error == null ? null : s.text(_error!),
+          alignLabelWithHint: true,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(s.text('Cancel')),
+        ),
+        TextButton(onPressed: _submit, child: Text(s.text('Import'))),
+      ],
+    );
+  }
+}
+
+void _showMessage(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }

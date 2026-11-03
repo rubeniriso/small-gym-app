@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gym_app/app.dart';
@@ -33,10 +34,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('Push'), findsOneWidget);
-    await tester.tap(find.text('Set as current'));
+    await tester.tap(find.byIcon(Icons.star_border));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Current'), findsWidgets);
+    expect(find.byIcon(Icons.star), findsOneWidget);
     await tester.tap(find.text('Push'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -93,8 +94,10 @@ void main() {
       await tester.tap(find.text('Log session'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      await tester.ensureVisible(find.text('Save'));
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.byKey(const Key('set-squat-0')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.binding.handlePopRoute();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
@@ -134,6 +137,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Plan'), findsOneWidget);
+    await tester.tap(find.text('Plan'));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('day-1')), findsNothing);
     expect(find.text('This week'), findsOneWidget);
     expect(
@@ -197,7 +202,7 @@ void main() {
     await tester.pump();
     expect(find.text('Barbell Row').hitTestable(), findsOneWidget);
     expect(find.text('Deadlift').hitTestable(), findsNothing);
-    expect(find.text('Save').hitTestable(), findsOneWidget);
+    expect(find.byKey(const Key('set-squat-0')), findsOneWidget);
   });
 
   testWidgets('add exercise filters muscle groups and cardio', (tester) async {
@@ -217,7 +222,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Create'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text('Set as current'));
+    await tester.tap(find.byIcon(Icons.star_border));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.text('Mixed'));
@@ -261,7 +266,9 @@ void main() {
     await tester.tap(find.byKey(const Key('exercise-jogging')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.enterText(_field('Minutes'), '30');
+    await tester.tap(find.byKey(const Key('jogging-duration')));
+    await tester.pumpAndSettle();
+    await _chooseDuration(tester, minutes: 30, seconds: 0);
     await tester.enterText(_field('Speed (km/h)'), '9');
     await tester.tap(find.widgetWithText(FilledButton, 'Add'));
     await tester.pump();
@@ -280,17 +287,21 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Add'));
     await tester.pump();
     expect(find.text('Enter a duration for every interval.'), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('sprint-duration-0')), '1');
+    await tester.tap(find.byKey(const Key('sprint-duration-0')));
+    await tester.pumpAndSettle();
+    await _chooseDuration(tester, minutes: 0, seconds: 5);
     await tester.enterText(find.byKey(const Key('sprint-speed-0')), '8');
     await tester.tap(find.text('Add interval'));
     await tester.pump();
-    await tester.enterText(find.byKey(const Key('sprint-duration-1')), '1');
+    await tester.tap(find.byKey(const Key('sprint-duration-1')));
+    await tester.pumpAndSettle();
+    await _chooseDuration(tester, minutes: 0, seconds: 5);
     await tester.enterText(find.byKey(const Key('sprint-speed-1')), '14');
     await tester.tap(find.widgetWithText(FilledButton, 'Add'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Warm-up · 8 km/h · 1 s'), findsOneWidget);
-    expect(find.text('Interval 2 · 14 km/h · 1 s'), findsOneWidget);
+    expect(find.text('Warm-up · 8 km/h · 5 s'), findsOneWidget);
+    expect(find.text('Interval 2 · 14 km/h · 5 s'), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
@@ -300,16 +311,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('30 min · 9 km/h'), findsOneWidget);
-    expect(find.text('Warm-up · 8 km/h · 1 s'), findsOneWidget);
-    expect(find.text('Interval 2 · 14 km/h · 1 s'), findsOneWidget);
+    expect(find.text('Warm-up · 8 km/h · 5 s'), findsOneWidget);
+    expect(find.text('Interval 2 · 14 km/h · 5 s'), findsOneWidget);
 
     await tester.tap(find.text('Log session'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Minutes'), findsOneWidget);
+    expect(find.text('Duration'), findsOneWidget);
     expect(find.text('Speed (km/h)'), findsWidgets);
-    expect(find.text('Warm-up · 8 km/h · 1 s'), findsOneWidget);
-    expect(find.text('Interval 2 · 14 km/h · 1 s'), findsOneWidget);
+    expect(find.text('Warm-up · 8 km/h · 5 s'), findsOneWidget);
+    expect(find.text('Interval 2 · 14 km/h · 5 s'), findsOneWidget);
     expect(find.text('Weight (kg)'), findsNothing);
     expect(find.text('Sec'), findsNothing);
     expect(find.text('Min'), findsNothing);
@@ -326,10 +337,10 @@ void main() {
     expect(find.text('Get ready'), findsNothing);
     expect(find.text('Warm-up'), findsOneWidget);
     expect(find.text('1/2'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 5));
     expect(find.text('2/2'), findsOneWidget);
     expect(find.text('14 km/h'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Sprint complete.'), findsOneWidget);
     await tester.tap(find.text('Save'));
@@ -381,6 +392,10 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Add'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('5 × 5 · 60 kg'), findsOneWidget);
+    expect(_field('Weight (kg)'), findsNothing);
+    await tester.tap(find.text('Edit'));
+    await tester.pump();
     expect(_field('Weight (kg)'), findsOneWidget);
     expect(find.text('60'), findsWidgets);
 
@@ -404,8 +419,10 @@ void main() {
     await tester.tap(find.text('Log session'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.ensureVisible(find.text('Save'));
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.byKey(const Key('set-bench_press-0')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.binding.handlePopRoute();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -421,6 +438,35 @@ void main() {
     await tester.tap(find.text('Bench Press'));
     await tester.pumpAndSettle();
     expect(find.text('Monday, November 2, 2026 · 60 kg'), findsOneWidget);
+  });
+
+  testWidgets('autopilot rests after a set and can add time', (tester) async {
+    _usePhone(tester);
+    final database = await _seed();
+    final repository = GymRepository(database);
+    final routine = (await repository.listRoutines()).single;
+    await repository.setRestSeconds(routine.id, 3);
+    await _pump(tester, database, anchor);
+
+    await tester.tap(find.text('Autopilot'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Set 1 of 5'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
+    await tester.tap(find.text('Next'));
+    await tester.pump();
+    expect(find.text('Rest'), findsOneWidget);
+    expect(find.text('+5'), findsOneWidget);
+    expect(find.text('+10'), findsOneWidget);
+    expect(find.text('+30'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('set-squat-0')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('+5'));
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('Set 1 of 5'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.text('Set 2 of 5'), findsOneWidget);
   });
 }
 
@@ -448,6 +494,23 @@ Future<void> _scrollTo(
     delta,
     scrollable: find.byType(Scrollable).last,
   );
+}
+
+Future<void> _chooseDuration(
+  WidgetTester tester, {
+  required int minutes,
+  required int seconds,
+}) async {
+  tester
+      .widget<CupertinoPicker>(find.byKey(const Key('duration-minutes')))
+      .onSelectedItemChanged!(minutes);
+  await tester.pump();
+  tester
+      .widget<CupertinoPicker>(find.byKey(const Key('duration-seconds')))
+      .onSelectedItemChanged!(seconds ~/ 5);
+  await tester.pump();
+  await tester.tap(find.byKey(const Key('duration-save')));
+  await tester.pumpAndSettle();
 }
 
 Finder _field(String label) {

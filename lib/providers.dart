@@ -6,10 +6,17 @@ import 'package:gym_app/data/gym_repository.dart';
 import 'package:gym_app/domain/dates.dart';
 import 'package:gym_app/domain/exercise.dart';
 import 'package:gym_app/domain/models.dart';
+import 'package:gym_app/locale_controller.dart';
 import 'package:gym_app/theme_mode_controller.dart';
 
 final themeModeControllerProvider = Provider<ThemeModeController>((ref) {
   final controller = ThemeModeController();
+  ref.onDispose(controller.dispose);
+  return controller;
+});
+
+final localeControllerProvider = Provider<LocaleController>((ref) {
+  final controller = LocaleController();
   ref.onDispose(controller.dispose);
   return controller;
 });
@@ -28,7 +35,15 @@ final databaseProvider = FutureProvider<AppDatabase>((ref) async {
 
 final repositoryProvider = FutureProvider<GymRepository>((ref) async {
   final database = await ref.watch(databaseProvider.future);
-  return GymRepository(database);
+  final repository = GymRepository(database);
+  await repository.loadCatalog();
+  return repository;
+});
+
+final exerciseCatalogProvider = FutureProvider<List<Exercise>>((ref) async {
+  ref.watch(dataRevisionProvider);
+  final repository = await ref.watch(repositoryProvider.future);
+  return repository.exercises();
 });
 
 class DataRevision extends Notifier<int> {
@@ -82,15 +97,34 @@ final routineProgressProvider =
 final exerciseProgressProvider =
     FutureProvider.family<
       ExerciseProgress,
-      ({int routineId, String exerciseKey})
+      ({int routineId, String exerciseKey, int? targetReps})
     >((ref, key) async {
       ref.watch(dataRevisionProvider);
       final repository = await ref.watch(repositoryProvider.future);
       return repository.exerciseProgress(
         key.routineId,
         Exercise.fromStorage(key.exerciseKey),
+        targetReps: key.targetReps,
       );
     });
+
+final routineHomeProvider = FutureProvider.family<HomeData, int>((
+  ref,
+  id,
+) async {
+  ref.watch(dataRevisionProvider);
+  final repository = await ref.watch(repositoryProvider.future);
+  return repository.loadHome(ref.watch(clockProvider)(), routineId: id);
+});
+
+final activityCalendarProvider = FutureProvider.family<List<ActivityDay>, int>((
+  ref,
+  id,
+) async {
+  ref.watch(dataRevisionProvider);
+  final repository = await ref.watch(repositoryProvider.future);
+  return repository.activityDays(id, ref.watch(clockProvider)());
+});
 
 final dayProvider =
     FutureProvider.family<TodayView, ({int routineId, String iso})>((

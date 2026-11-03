@@ -1,7 +1,7 @@
 name: gym_app
 description: "Local weightlifting routines on the phone."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.1.0+8
 
 environment:
   sdk: ^3.13.5
@@ -10,7 +10,10 @@ dependencies:
   drift: ^2.35.3
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_riverpod: ^3.4.3
+  intl: any
   go_router: ^18.1.2
   path: ^1.9.1
   path_provider: ^2.1.6
