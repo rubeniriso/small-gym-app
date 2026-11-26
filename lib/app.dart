@@ -7,6 +7,7 @@ import 'package:gym_app/l10n/app_strings.dart';
 import 'package:gym_app/locale_controller.dart';
 import 'package:gym_app/providers.dart';
 import 'package:gym_app/router.dart';
+import 'package:gym_app/theme.dart';
 import 'package:gym_app/theme_mode_controller.dart';
 
 class GymApp extends StatelessWidget {
@@ -47,8 +48,6 @@ class GymScaffold extends ConsumerStatefulWidget {
 
 class _GymScaffoldState extends ConsumerState<GymScaffold>
     with WidgetsBindingObserver {
-  static const _seed = Color(0xFF1565C0);
-
   late final ThemeModeController _themeMode;
   late final LocaleController _locale;
   late final GoRouter _router;
@@ -98,17 +97,8 @@ class _GymScaffoldState extends ConsumerState<GymScaffold>
             GlobalCupertinoLocalizations.delegate,
           ],
           themeMode: _themeMode.mode,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(seedColor: _seed),
-          ),
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: _seed,
-              brightness: Brightness.dark,
-            ),
-          ),
+          theme: buildAppTheme(Brightness.light),
+          darkTheme: buildAppTheme(Brightness.dark),
           routerConfig: _router,
           builder: (context, child) {
             return AppStringsScope(

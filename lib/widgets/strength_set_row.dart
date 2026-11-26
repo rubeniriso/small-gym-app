@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:gym_app/domain/progression.dart';
 import 'package:gym_app/l10n/app_strings.dart';
 
+/// The set the lifter just finished, with edit and done controls.
 class StrengthSetRow extends StatelessWidget {
   const StrengthSetRow({
     super.key,
@@ -13,6 +14,7 @@ class StrengthSetRow extends StatelessWidget {
     required this.done,
     required this.onEdit,
     required this.onToggle,
+    this.caption,
   });
 
   final String exerciseKey;
@@ -23,33 +25,184 @@ class StrengthSetRow extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onToggle;
 
+  /// Small line above [label], such as the exercise and set number.
+  final String? caption;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: placeholder
-                ? theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  )
-                : theme.textTheme.bodyLarge,
+    final scheme = theme.colorScheme;
+    final s = context.s;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 12, 10, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (caption != null)
+                    Text(
+                      caption!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  Text(
+                    label,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      color: placeholder ? scheme.onSurfaceVariant : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              key: Key('edit-set-$exerciseKey-$setIndex'),
+              tooltip: s.text('Edit set'),
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              key: Key('set-$exerciseKey-$setIndex'),
+              tooltip: s.text('Set done'),
+              isSelected: done,
+              onPressed: onToggle,
+              style: IconButton.styleFrom(
+                fixedSize: const Size(48, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                backgroundColor: done ? scheme.primary : null,
+                foregroundColor: done ? scheme.onPrimary : scheme.primary,
+                side: done ? null : BorderSide(color: scheme.outline),
+              ),
+              icon: const Icon(Icons.check),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Up to five set buttons per row, each the same width.
+class SetPillGrid extends StatelessWidget {
+  const SetPillGrid({super.key, required this.children});
+
+  final List<Widget> children;
+
+  static const _gap = 8.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = children.length.clamp(1, 5);
+        final width = (constraints.maxWidth - _gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: _gap,
+          runSpacing: _gap,
+          children: [
+            for (final child in children) SizedBox(width: width, child: child),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// One planned set: reps on top, kilograms below. Tap marks it done,
+/// long-press edits it.
+class SetPill extends StatelessWidget {
+  const SetPill({
+    super.key,
+    required this.setIndex,
+    required this.kg,
+    required this.reps,
+    required this.targetReps,
+    required this.placeholder,
+    required this.done,
+    required this.onEdit,
+    required this.onToggle,
+  });
+
+  final int setIndex;
+  final double kg;
+  final int reps;
+  final int targetReps;
+  final bool placeholder;
+  final bool done;
+  final VoidCallback onEdit;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+    final short = done && reps < targetReps;
+    final (Color? background, Color foreground) = switch ((done, short)) {
+      (true, true) =>
+        dark
+            ? (const Color(0xFF5C2A12), const Color(0xFFFFDBCB))
+            : (const Color(0xFFFFDBCB), const Color(0xFF5C1A00)),
+      (true, false) => (scheme.primary, scheme.onPrimary),
+      _ => (null, placeholder ? scheme.onSurfaceVariant : scheme.onSurface),
+    };
+    final s = context.s;
+    final label = strengthSetLabel(kg, reps);
+    return Semantics(
+      button: true,
+      checked: done,
+      label: '${s.setNumber(setIndex + 1)}, $label',
+      onLongPressHint: s.text('Edit set'),
+      excludeSemantics: true,
+      child: Material(
+        color: background ?? Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: done
+              ? BorderSide.none
+              : BorderSide(color: scheme.outline, width: 1.5),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onToggle,
+          onLongPress: onEdit,
+          child: SizedBox(
+            height: 60,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$reps',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: foreground,
+                    fontWeight: done ? FontWeight.w700 : FontWeight.w500,
+                    height: 1.1,
+                  ),
+                ),
+                Text(
+                  formatKg(kg),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: foreground.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        IconButton(
-          key: Key('edit-set-$exerciseKey-$setIndex'),
-          tooltip: context.s.text('Edit set'),
-          onPressed: onEdit,
-          icon: const Icon(Icons.edit_outlined),
-        ),
-        Checkbox(
-          key: Key('set-$exerciseKey-$setIndex'),
-          value: done,
-          onChanged: (_) => onToggle(),
-        ),
-      ],
+      ),
     );
   }
 }

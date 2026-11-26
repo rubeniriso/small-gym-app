@@ -47,138 +47,176 @@ class AppShell extends StatelessWidget {
             listenable: Listenable.merge([themeMode, locale]),
             builder: (context, _) {
               final copy = context.s;
-              return ListView(
-                children: [
-                  ListTile(
-                    title: Text(copy.text('Home')),
-                    selected: onHome,
-                    onTap: () {
-                      final router = GoRouter.of(context);
-                      Navigator.pop(context);
-                      if (onHome) {
-                        return;
-                      }
-                      router.go('/');
-                    },
+              final theme = Theme.of(context);
+              final scheme = theme.colorScheme;
+              Widget section(String label) => Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                child: Text(
+                  label,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
-                  ListTile(
-                    title: Text(copy.text('Exercises')),
-                    selected: onExercises,
-                    onTap: () {
-                      final router = GoRouter.of(context);
-                      Navigator.pop(context);
-                      if (onExercises) {
-                        return;
-                      }
-                      if (location == '/') {
-                        router.push('/exercises');
-                      } else {
-                        router.go('/exercises');
-                      }
-                    },
-                  ),
-                  ListTile(
-                    title: Text(copy.text('Routines')),
-                    selected: onRoutines,
-                    onTap: () {
-                      final router = GoRouter.of(context);
-                      Navigator.pop(context);
-                      if (location == '/routines') {
-                        return;
-                      }
-                      if (location == '/') {
-                        router.push('/routines');
-                      } else {
-                        router.go('/routines');
-                      }
-                    },
-                  ),
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: Text(
-                      copy.text('Theme'),
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: SegmentedButton<ThemeMode>(
-                      showSelectedIcon: false,
-                      segments: [
-                        ButtonSegment(
-                          value: ThemeMode.system,
-                          label: Text(
-                            copy.text('System'),
-                            key: const Key('theme-system'),
+                ),
+              );
+              return ListTileTheme.merge(
+                selectedColor: scheme.onPrimaryContainer,
+                selectedTileColor: scheme.primaryContainer,
+                iconColor: scheme.onSurfaceVariant,
+                shape: const StadiumBorder(),
+                minTileHeight: 56,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: scheme.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.fitness_center,
+                              size: 22,
+                              color: scheme.onPrimary,
+                            ),
                           ),
-                        ),
-                        ButtonSegment(
-                          value: ThemeMode.light,
-                          label: Text(
-                            copy.text('Light'),
-                            key: const Key('theme-light'),
+                          const SizedBox(width: 12),
+                          Text(
+                            copy.text('Gym'),
+                            style: theme.textTheme.headlineSmall,
                           ),
-                        ),
-                        ButtonSegment(
-                          value: ThemeMode.dark,
-                          label: Text(
-                            copy.text('Dark'),
-                            key: const Key('theme-dark'),
-                          ),
-                        ),
-                      ],
-                      selected: {themeMode.mode},
-                      onSelectionChanged: (selection) {
-                        themeMode.setMode(selection.first);
-                      },
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      copy.text('Language'),
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: SegmentedButton<AppLanguage>(
-                      showSelectedIcon: false,
-                      style: const ButtonStyle(
-                        visualDensity: VisualDensity.compact,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ],
                       ),
-                      segments: [
-                        ButtonSegment(
-                          value: AppLanguage.system,
-                          label: Text(
-                            copy.text('System'),
-                            key: const Key('language-system'),
-                          ),
-                        ),
-                        ButtonSegment(
-                          value: AppLanguage.english,
-                          label: Text(
-                            copy.text('English'),
-                            key: const Key('language-english'),
-                          ),
-                        ),
-                        ButtonSegment(
-                          value: AppLanguage.spanish,
-                          label: Text(
-                            copy.text('Spanish'),
-                            key: const Key('language-spanish'),
-                          ),
-                        ),
-                      ],
-                      selected: {locale.language},
-                      onSelectionChanged: (selection) {
-                        locale.setLanguage(selection.first);
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.home_outlined),
+                      title: Text(copy.text('Home')),
+                      selected: onHome,
+                      onTap: () {
+                        final router = GoRouter.of(context);
+                        Navigator.pop(context);
+                        if (onHome) {
+                          return;
+                        }
+                        router.go('/');
                       },
                     ),
-                  ),
-                ],
+                    ListTile(
+                      leading: const Icon(Icons.fitness_center),
+                      title: Text(copy.text('Exercises')),
+                      selected: onExercises,
+                      onTap: () {
+                        final router = GoRouter.of(context);
+                        Navigator.pop(context);
+                        if (onExercises) {
+                          return;
+                        }
+                        if (location == '/') {
+                          router.push('/exercises');
+                        } else {
+                          router.go('/exercises');
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.calendar_month_outlined),
+                      title: Text(copy.text('Routines')),
+                      selected: onRoutines,
+                      onTap: () {
+                        final router = GoRouter.of(context);
+                        Navigator.pop(context);
+                        if (location == '/routines') {
+                          return;
+                        }
+                        if (location == '/') {
+                          router.push('/routines');
+                        } else {
+                          router.go('/routines');
+                        }
+                      },
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Divider(height: 1),
+                    ),
+                    section(copy.text('Theme')),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SegmentedButton<ThemeMode>(
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            label: Text(
+                              copy.text('System'),
+                              key: const Key('theme-system'),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text(
+                              copy.text('Light'),
+                              key: const Key('theme-light'),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text(
+                              copy.text('Dark'),
+                              key: const Key('theme-dark'),
+                            ),
+                          ),
+                        ],
+                        selected: {themeMode.mode},
+                        onSelectionChanged: (selection) {
+                          themeMode.setMode(selection.first);
+                        },
+                      ),
+                    ),
+                    section(copy.text('Language')),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SegmentedButton<AppLanguage>(
+                        showSelectedIcon: false,
+                        style: const ButtonStyle(
+                          visualDensity: VisualDensity.compact,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        segments: [
+                          ButtonSegment(
+                            value: AppLanguage.system,
+                            label: Text(
+                              copy.text('System'),
+                              key: const Key('language-system'),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: AppLanguage.english,
+                            label: Text(
+                              copy.text('English'),
+                              key: const Key('language-english'),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: AppLanguage.spanish,
+                            label: Text(
+                              copy.text('Spanish'),
+                              key: const Key('language-spanish'),
+                            ),
+                          ),
+                        ],
+                        selected: {locale.language},
+                        onSelectionChanged: (selection) {
+                          locale.setLanguage(selection.first);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           ),

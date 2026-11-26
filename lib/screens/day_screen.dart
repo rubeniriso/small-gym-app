@@ -8,6 +8,7 @@ import 'package:gym_app/providers.dart';
 import 'package:gym_app/widgets/database_view.dart';
 import 'package:gym_app/widgets/prescription_lines.dart';
 import 'package:gym_app/widgets/session_actions.dart';
+import 'package:gym_app/widgets/ui.dart';
 import 'package:gym_app/widgets/workout_pick.dart';
 
 class DayScreen extends ConsumerWidget {
@@ -28,11 +29,11 @@ class DayScreen extends ConsumerWidget {
         final theme = Theme.of(context);
         final s = context.s;
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
             Text(
               s.longDate(date),
-              style: theme.textTheme.bodyMedium?.copyWith(
+              style: theme.textTheme.titleSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
@@ -51,13 +52,21 @@ class DayScreen extends ConsumerWidget {
       TodayNone() ||
       TodayNoSession() => [Text(s.text('This plan has no session today.'))],
       TodayRest() => [
-        Text(s.text('Rest'), style: theme.textTheme.headlineMedium),
+        HeroCard(
+          child: Row(
+            children: [
+              const Icon(Icons.bedtime_outlined, size: 28),
+              const SizedBox(width: 14),
+              Text(s.text('Rest'), style: theme.textTheme.headlineSmall),
+            ],
+          ),
+        ),
       ],
       TodayNeedsWorkout() => [Text(s.text('Choose a workout.'))],
       TodayWorkout() => [
         Text(
           s.workoutName(today.workoutName),
-          style: theme.textTheme.titleLarge,
+          style: theme.textTheme.headlineSmall,
         ),
         if (isToday && today.choices.length > 1 && !today.logged) ...[
           const SizedBox(height: 12),
@@ -68,17 +77,17 @@ class DayScreen extends ConsumerWidget {
             selectedId: today.workoutId,
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         for (final exercise in today.exercises) ...[
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(s.exerciseName(exercise.exercise)),
+          ExerciseCard(
+            kind: exercise.exercise.kind,
+            title: s.exerciseName(exercise.exercise),
             subtitle: PrescriptionLines(exercise: exercise),
           ),
-          const Divider(height: 1),
+          const SizedBox(height: 10),
         ],
         if (isToday) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: 14),
           SessionActions(
             logged: today.logged,
             autopilot: today.hasStrength,

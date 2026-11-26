@@ -16,6 +16,7 @@ import 'package:gym_app/widgets/database_view.dart';
 import 'package:gym_app/widgets/plan_summary.dart';
 import 'package:gym_app/widgets/prescription_lines.dart';
 import 'package:gym_app/widgets/session_actions.dart';
+import 'package:gym_app/widgets/ui.dart';
 import 'package:gym_app/widgets/duration_picker.dart';
 import 'package:gym_app/widgets/gym_icons.dart';
 import 'package:gym_app/widgets/increment_picker.dart';
@@ -278,7 +279,7 @@ class _SummaryTab extends ConsumerWidget {
               TodayWorkout() => [
                 Text(
                   s.workoutName(today.workoutName),
-                  style: theme.textTheme.titleLarge,
+                  style: theme.textTheme.headlineSmall,
                 ),
                 if (today.choices.length > 1 && !today.logged) ...[
                   const SizedBox(height: 12),
@@ -289,16 +290,16 @@ class _SummaryTab extends ConsumerWidget {
                     selectedId: today.workoutId,
                   ),
                 ],
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 for (final exercise in today.exercises) ...[
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(s.exerciseName(exercise.exercise)),
+                  ExerciseCard(
+                    kind: exercise.exercise.kind,
+                    title: s.exerciseName(exercise.exercise),
                     subtitle: PrescriptionLines(exercise: exercise),
                   ),
-                  const Divider(height: 1),
+                  const SizedBox(height: 10),
                 ],
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
                 SessionActions(
                   logged: today.logged,
                   autopilot: today.hasStrength,

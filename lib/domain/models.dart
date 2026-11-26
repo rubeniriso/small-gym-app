@@ -264,12 +264,19 @@ class PrescribedExercise {
     this.targetSpeedKmh,
     this.restSeconds = defaultRestSeconds,
     this.intervals = const [],
+    this.previousKg,
+    this.previousReps,
   });
 
   final Exercise exercise;
   final int sets;
   final int reps;
   final double? weightKg;
+
+  /// Weight and rep total of the previous logged session of this lift.
+  /// Null when there is none or the exercise is cardio.
+  final double? previousKg;
+  final int? previousReps;
 
   /// Jogging length in seconds.
   final int? targetDurationSeconds;
@@ -458,9 +465,15 @@ class LogExerciseSeed {
     this.completed,
     this.strengthSets = const [],
     this.restSeconds = defaultRestSeconds,
+    this.previousKg,
+    this.previousReps,
   });
 
   final Exercise exercise;
+
+  /// Previous logged session of this lift, as on [PrescribedExercise].
+  final double? previousKg;
+  final int? previousReps;
 
   /// Logged in place of [exercise] for this session only.
   final Exercise? substitute;

@@ -25,6 +25,14 @@ TemplateWindow templateWindow(DateTime anchorMonday, DateTime day) {
   return TemplateWindow.inside;
 }
 
+/// Week of the 12-week template that holds [day], from 1, or null outside it.
+int? templateWeekOf(DateTime anchorMonday, DateTime day) {
+  if (templateWindow(anchorMonday, day) != TemplateWindow.inside) {
+    return null;
+  }
+  return calendarDaysBetween(anchorMonday, day) ~/ 7 + 1;
+}
+
 /// Slot 0 is week 1 Monday, then Wednesday, Friday, week 2 Monday, and so on.
 ///
 /// Returns null on a rest weekday or outside the 12 weeks.

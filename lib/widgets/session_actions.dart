@@ -21,18 +21,21 @@ class SessionActions extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: FilledButton(
+          child: FilledButton.icon(
             onPressed: onLog,
-            child: Text(logged ? s.text('Edit log') : s.text('Log session')),
+            icon: Icon(logged ? Icons.edit_outlined : Icons.add),
+            label: Text(
+              logged ? s.text('Edit log') : s.text('Log session'),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
         if (autopilot) ...[
-          const SizedBox(width: 8),
-          Expanded(
-            child: FilledButton.tonal(
-              onPressed: onAutopilot,
-              child: Text(s.text('Autopilot')),
-            ),
+          const SizedBox(width: 10),
+          FilledButton.tonalIcon(
+            onPressed: onAutopilot,
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: Text(s.text('Autopilot')),
           ),
         ],
       ],

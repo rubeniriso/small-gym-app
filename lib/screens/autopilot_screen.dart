@@ -259,109 +259,272 @@ class _AutopilotScreenState extends ConsumerState<AutopilotScreen>
       );
     }
     final theme = Theme.of(context);
-    final confirming = _phase == _Phase.perform
-        ? null
-        : _steps[_index.clamp(0, _steps.length - 1)];
+    final scheme = theme.colorScheme;
     final current = _steps[_index.clamp(0, _steps.length - 1)];
-    return ListView(
-      padding: const EdgeInsets.all(24),
+    final done = _steps.where((step) => step.done).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          s.workoutName(form.workoutName),
-          style: theme.textTheme.titleMedium,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  s.workoutName(form.workoutName),
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              Text(
+                '$done/${_steps.length}',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 24),
-        if (_phase == _Phase.perform) ...[
-          Text(
-            s.exerciseName(current.exercise),
-            style: theme.textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            s.setOf(current.setIndex + 1, current.setCount),
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            strengthSetLabel(current.placeholderKg, current.placeholderReps),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 32),
-          FilledButton(onPressed: _next, child: Text(s.text('Next'))),
-        ] else ...[
-          if (_phase == _Phase.rest) ...[
-            Text(s.text('Rest'), style: theme.textTheme.headlineMedium),
-            const SizedBox(height: 8),
-            Text(
-              _clock(_budget - _elapsed),
-              style: theme.textTheme.displaySmall,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                for (final extra in const [5, 10, 30]) ...[
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _addRest(extra),
-                      child: Text('+$extra'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+          child: Row(
+            children: [
+              for (var index = 0; index < _steps.length; index++) ...[
+                if (index > 0) const SizedBox(width: 3),
+                Expanded(
+                  child: Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      color: _steps[index].done
+                          ? scheme.primary
+                          : index == _index && _phase == _Phase.perform
+                          ? scheme.primary.withValues(alpha: 0.4)
+                          : scheme.surfaceContainerHighest,
                     ),
                   ),
-                  if (extra != 30) const SizedBox(width: 8),
-                ],
+                ),
               ],
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: _skipRest,
-                child: Text(s.text('Skip')),
-              ),
-            ),
-          ] else
-            Text(s.text('Last set'), style: theme.textTheme.headlineMedium),
-          const SizedBox(height: 16),
-          Text(
-            s.exerciseName(confirming!.exercise),
-            style: theme.textTheme.titleMedium,
+            ],
           ),
-          Text(
-            s.setOf(confirming.setIndex + 1, confirming.setCount),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            children: [
+              if (_phase == _Phase.perform)
+                ..._perform(current)
+              else
+                ..._confirm(form),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(s.text(_error!), style: TextStyle(color: scheme.error)),
+              ],
+            ],
+          ),
+        ),
+        if (_phase == _Phase.perform || _phase == _Phase.finished)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: _phase == _Phase.perform
+                  ? FilledButton(onPressed: _next, child: Text(s.text('Next')))
+                  : FilledButton(
+                      onPressed: () => context.pop(),
+                      child: Text(s.text('Done')),
+                    ),
             ),
           ),
-          StrengthSetRow(
-            exerciseKey: confirming.exercise.storageKey,
-            setIndex: confirming.setIndex,
-            label: strengthSetLabel(
-              confirming.displayKg,
-              confirming.displayReps,
-            ),
-            placeholder: !confirming.edited && !confirming.done,
-            done: confirming.done,
-            onEdit: () => _edit(form, confirming),
-            onToggle: () => _toggle(form, confirming),
-          ),
-          if (_phase == _Phase.finished) ...[
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: () => context.pop(),
-              child: Text(s.text('Done')),
-            ),
-          ],
-        ],
-        if (_error != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            s.text(_error!),
-            style: TextStyle(color: theme.colorScheme.error),
-          ),
-        ],
       ],
     );
+  }
+
+  List<Widget> _perform(_Step step) {
+    final theme = Theme.of(context);
+    final s = context.s;
+    return [
+      const SizedBox(height: 40),
+      Text(
+        s.exerciseName(step.exercise),
+        textAlign: TextAlign.center,
+        style: theme.textTheme.headlineMedium,
+      ),
+      const SizedBox(height: 8),
+      Text(
+        s.setOf(step.setIndex + 1, step.setCount),
+        textAlign: TextAlign.center,
+        style: theme.textTheme.titleLarge?.copyWith(
+          color: theme.colorScheme.primary,
+        ),
+      ),
+      const SizedBox(height: 32),
+      Text(
+        strengthSetLabel(step.placeholderKg, step.placeholderReps),
+        textAlign: TextAlign.center,
+        style: theme.textTheme.displaySmall?.copyWith(
+          fontWeight: FontWeight.w500,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _confirm(LogFormData form) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final s = context.s;
+    final confirming = _steps[_index.clamp(0, _steps.length - 1)];
+    final upcoming = _phase == _Phase.rest && _index < _steps.length - 1
+        ? _steps[_index + 1]
+        : null;
+    final remaining = _budget - _elapsed;
+    return [
+      if (_phase == _Phase.rest) ...[
+        Text(
+          s.text('Rest'),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: scheme.primary,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Center(
+          child: SizedBox(
+            width: 220,
+            height: 220,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CircularProgressIndicator(
+                  value: _budget.inMilliseconds == 0
+                      ? 0
+                      : (remaining.inMilliseconds / _budget.inMilliseconds)
+                            .clamp(0.0, 1.0),
+                  strokeWidth: 12,
+                  strokeCap: StrokeCap.round,
+                  backgroundColor: scheme.surfaceContainerHighest,
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _clock(remaining),
+                      style: theme.textTheme.displayMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    Text(
+                      s.restOf(_clock(_budget)),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            for (final extra in const [5, 10, 30]) ...[
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _addRest(extra),
+                  child: Text('+$extra'),
+                ),
+              ),
+              if (extra != 30) const SizedBox(width: 10),
+            ],
+          ],
+        ),
+        const SizedBox(height: 28),
+      ] else ...[
+        Text(
+          s.text('Last set'),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 24),
+      ],
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                s.exerciseName(confirming.exercise),
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+            Text(
+              s.setOf(confirming.setIndex + 1, confirming.setCount),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      StrengthSetRow(
+        exerciseKey: confirming.exercise.storageKey,
+        setIndex: confirming.setIndex,
+        label: strengthSetLabel(confirming.displayKg, confirming.displayReps),
+        placeholder: !confirming.edited && !confirming.done,
+        done: confirming.done,
+        onEdit: () => _edit(form, confirming),
+        onToggle: () => _toggle(form, confirming),
+      ),
+      if (_phase == _Phase.rest) ...[
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: upcoming == null
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            s.text('Up next'),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            s.upNext(
+                              s.exerciseName(upcoming.exercise),
+                              upcoming.setIndex + 1,
+                              strengthSetLabel(
+                                upcoming.placeholderKg,
+                                upcoming.placeholderReps,
+                              ),
+                            ),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton.tonal(
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+              onPressed: _skipRest,
+              child: Text(s.text('Skip')),
+            ),
+          ],
+        ),
+      ],
+    ];
   }
 
   String _clock(Duration remaining) {

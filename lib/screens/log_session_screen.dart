@@ -11,6 +11,7 @@ import 'package:gym_app/screens/sprint_timer_screen.dart';
 import 'package:gym_app/widgets/duration_picker.dart';
 import 'package:gym_app/widgets/exercise_picker.dart';
 import 'package:gym_app/widgets/strength_set_row.dart';
+import 'package:gym_app/widgets/ui.dart';
 
 class LogSessionScreen extends ConsumerStatefulWidget {
   const LogSessionScreen({super.key, this.routineId});
@@ -166,84 +167,149 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
       return Center(child: Text(context.s.todayMessage(_unavailable)));
     }
     final theme = Theme.of(context);
+    final s = context.s;
     final needsSave = form.exercises.any(
       (exercise) => exercise.exercise.kind != ExerciseKind.strength,
     );
     final hasStrength = form.exercises.any(
       (exercise) => exercise.exercise.kind == ExerciseKind.strength,
     );
+    final drafts = [for (final sets in _sets.values) ...sets];
+    final done = drafts.where((draft) => draft.done).length;
     return Column(
       children: [
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  context.s.workoutName(form.workoutName),
-                  style: theme.textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  context.s.longDate(form.day),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (hasStrength)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
-                      onPressed: () {
-                        final id = widget.routineId;
-                        context.push(
-                          id == null ? '/autopilot' : '/routines/$id/autopilot',
-                        );
-                      },
-                      child: Text(context.s.text('Autopilot')),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: PageHeading(
+                        eyebrow: s.longDate(form.day),
+                        title: s.workoutName(form.workoutName),
+                      ),
                     ),
+                    if (hasStrength) ...[
+                      const SizedBox(width: 12),
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          textStyle: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onPressed: () {
+                          final id = widget.routineId;
+                          context.push(
+                            id == null
+                                ? '/autopilot'
+                                : '/routines/$id/autopilot',
+                          );
+                        },
+                        icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                        label: Text(s.text('Autopilot')),
+                      ),
+                    ],
+                  ],
+                ),
+                if (drafts.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: done / drafts.length,
+                            minHeight: 6,
+                            backgroundColor:
+                                theme.colorScheme.surfaceContainerHighest,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        s.setsDone(done, drafts.length),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
                   ),
+                ],
+                const SizedBox(height: 20),
                 for (final exercise in form.exercises) ...[
-                  InkWell(
-                    onTap: exercise.exercise.kind == ExerciseKind.strength
+                  _ExerciseLogCard(
+                    title: s.exerciseName(_currentExercise(exercise)),
+                    caption:
+                        !_swapped.containsKey(exercise.exercise) &&
+                            exercise.previousKg != null &&
+                            exercise.previousReps != null
+                        ? s.lastTime(
+                            exercise.previousKg!,
+                            exercise.previousReps!,
+                          )
+                        : null,
+                    complete: _complete(exercise),
+                    onSwap: exercise.exercise.kind == ExerciseKind.strength
                         ? () => _changeExercise(form, exercise)
                         : null,
-                    child: Text(
-                      context.s.exerciseName(_currentExercise(exercise)),
-                      style: theme.textTheme.titleMedium,
+                    children: _fields(form, exercise),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (hasStrength)
+                  Text(
+                    s.text('Tap a set to mark it done. Long-press to edit it.'),
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  ..._fields(form, exercise),
-                  const SizedBox(height: 8),
-                ],
-                if (_error != null)
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
                   Text(
-                    context.s.text(_error!),
+                    s.text(_error!),
                     style: TextStyle(color: theme.colorScheme.error),
                   ),
+                ],
               ],
             ),
           ),
         ),
         if (needsSave)
           SafeArea(
+            top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: FilledButton(
-                onPressed: _saving ? null : _save,
-                child: Text(
-                  form.updating
-                      ? context.s.text('Update session')
-                      : context.s.text('Save'),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(
+                    form.updating ? s.text('Update session') : s.text('Save'),
+                  ),
                 ),
               ),
             ),
           ),
       ],
     );
+  }
+
+  bool _complete(LogExerciseSeed exercise) {
+    return switch (exercise.exercise.kind) {
+      ExerciseKind.strength =>
+        (_sets[exercise.exercise] ?? const []).isNotEmpty &&
+            _sets[exercise.exercise]!.every((draft) => draft.done),
+      ExerciseKind.sprinting => _completed[exercise.exercise] != null,
+      ExerciseKind.jogging => false,
+    };
   }
 
   Exercise _currentExercise(LogExerciseSeed exercise) {
@@ -425,19 +491,22 @@ class _LogSessionScreenState extends ConsumerState<LogSessionScreen> {
       case ExerciseKind.strength:
         final drafts = _sets[exercise.exercise] ?? const <_SetDraft>[];
         return [
-          for (var index = 0; index < drafts.length; index++)
-            StrengthSetRow(
-              exerciseKey: exercise.exercise.storageKey,
-              setIndex: index,
-              label: strengthSetLabel(
-                drafts[index].displayKg,
-                drafts[index].displayReps,
-              ),
-              placeholder: !drafts[index].edited && !drafts[index].done,
-              done: drafts[index].done,
-              onEdit: () => _editSet(form, exercise, index),
-              onToggle: () => _toggleSet(form, exercise, index),
-            ),
+          SetPillGrid(
+            children: [
+              for (var index = 0; index < drafts.length; index++)
+                SetPill(
+                  key: Key('set-${exercise.exercise.storageKey}-$index'),
+                  setIndex: index,
+                  kg: drafts[index].displayKg,
+                  reps: drafts[index].displayReps,
+                  targetReps: exercise.targetReps,
+                  placeholder: !drafts[index].edited && !drafts[index].done,
+                  done: drafts[index].done,
+                  onEdit: () => _editSet(form, exercise, index),
+                  onToggle: () => _toggleSet(form, exercise, index),
+                ),
+            ],
+          ),
         ];
       case ExerciseKind.jogging:
         return [
@@ -532,4 +601,80 @@ class _SetDraft {
 
   double get displayKg => weight ?? placeholderKg;
   int get displayReps => reps ?? placeholderReps;
+}
+
+class _ExerciseLogCard extends StatelessWidget {
+  const _ExerciseLogCard({
+    required this.title,
+    required this.caption,
+    required this.complete,
+    required this.onSwap,
+    required this.children,
+  });
+
+  final String title;
+  final String? caption;
+  final bool complete;
+  final VoidCallback? onSwap;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: theme.textTheme.titleMedium),
+                      if (caption != null)
+                        Text(
+                          caption!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (complete)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Icon(
+                      Icons.check_circle,
+                      color: scheme.primary,
+                      semanticLabel: context.s.text('Done'),
+                    ),
+                  ),
+                if (onSwap != null)
+                  IconButton(
+                    tooltip: context.s.text('Swap exercise'),
+                    onPressed: onSwap,
+                    style: IconButton.styleFrom(
+                      backgroundColor: scheme.surfaceContainerHigh,
+                    ),
+                    icon: const Icon(Icons.swap_horiz, size: 20),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
 }

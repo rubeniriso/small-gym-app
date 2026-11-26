@@ -177,6 +177,40 @@ class AppStrings {
     }
   }
 
+  String exerciseCount(int count) => es
+      ? '$count ${count == 1 ? 'ejercicio' : 'ejercicios'}'
+      : '$count ${count == 1 ? 'exercise' : 'exercises'}';
+
+  String setCount(int count) => es
+      ? '$count ${count == 1 ? 'serie' : 'series'}'
+      : '$count ${count == 1 ? 'set' : 'sets'}';
+
+  String setNumber(int number) => es ? 'Serie $number' : 'Set $number';
+
+  String setsDone(int done, int total) =>
+      es ? '$done / $total series' : '$done / $total sets';
+
+  String weekNumber(int week) => es ? 'Semana $week' : 'Week $week';
+
+  String weekOf(int week, int total) =>
+      es ? 'Semana $week de $total' : 'Week $week of $total';
+
+  String sessionsOf(int done, int total) =>
+      es ? '$done de $total sesiones' : '$done of $total sessions';
+
+  String lastTime(double kg, int reps) => es
+      ? 'La última vez ${formatKg(kg)} kg · $reps reps'
+      : 'Last time ${formatKg(kg)} kg · $reps reps';
+
+  String restOf(String clock) => es ? 'de $clock' : 'of $clock';
+
+  String justDone(String name, int set, int total) => es
+      ? 'Hecha · $name · serie $set de $total'
+      : 'Just done · $name · set $set of $total';
+
+  String upNext(String name, int set, String label) =>
+      es ? '$name · serie $set · $label' : '$name · set $set · $label';
+
   String sprintLine(LoggedInterval interval, int index) {
     final name = index == 0 ? text('Warm-up') : intervalLabel(index + 1);
     return '$name · ${formatKg(interval.speedKmh)} km/h · ${formatSprintDuration(interval)}';
@@ -576,4 +610,15 @@ const _es = <String, String>{
   'Bodyweight': 'Peso corporal',
   'Jogging': 'Trote',
   'Sprinting': 'Sprint',
+  'Logged': 'Registrado',
+  'Same': 'Igual',
+  'Current': 'Actual',
+  'Make current': 'Hacer actual',
+  'Up next': 'A continuación',
+  'Swap exercise': 'Cambiar ejercicio',
+  'Set done': 'Serie hecha',
+  'Tap a set to mark it done. Long-press to edit it.':
+      'Toca una serie para marcarla. Mantén pulsada para editarla.',
+  'Tap the star to make a routine current.':
+      'Toca la estrella para que una rutina sea la actual.',
 };

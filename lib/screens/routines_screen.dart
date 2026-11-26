@@ -8,7 +8,12 @@ import 'package:go_router/go_router.dart';
 import 'package:gym_app/domain/routine_kind.dart';
 import 'package:gym_app/l10n/app_strings.dart';
 import 'package:gym_app/providers.dart';
+import 'package:gym_app/domain/dates.dart';
+import 'package:gym_app/domain/models.dart';
+import 'package:gym_app/domain/schedule.dart';
+import 'package:gym_app/theme.dart';
 import 'package:gym_app/widgets/database_view.dart';
+import 'package:gym_app/widgets/ui.dart';
 
 class RoutinesScreen extends ConsumerWidget {
   const RoutinesScreen({super.key});
@@ -25,90 +30,39 @@ class RoutinesScreen extends ConsumerWidget {
               Center(child: Text(context.s.text('No routines yet.')))
             else
               ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                itemCount: items.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 112),
+                itemCount: items.length + 1,
+                separatorBuilder: (context, index) =>
+                    SizedBox(height: index == 0 ? 16 : 12),
                 itemBuilder: (context, index) {
-                  final item = items[index];
-                  return Card(
-                    margin: EdgeInsets.zero,
-                    child: InkWell(
-                      onTap: () => context.push('/routines/${item.id}'),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.name,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium,
-                                  ),
-                                  if (item.isTemplate)
-                                    Text(
-                                      context.s.text('12-week plan'),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium,
-                                    ),
-                                  if (item.kind == RoutineKind.dynamicDay)
-                                    Text(
-                                      context.s.routineKind(
-                                        RoutineKind.dynamicDay,
-                                      ),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium,
-                                    ),
-                                  if (item.kind == RoutineKind.customPattern)
-                                    Text(
-                                      context.s.routineKind(
-                                        RoutineKind.customPattern,
-                                      ),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: item.isCurrent
-                                  ? null
-                                  : () {
-                                      ref.mutate(
-                                        (repository) => repository
-                                            .setCurrentRoutine(item.id),
-                                      );
-                                    },
-                              style: IconButton.styleFrom(
-                                disabledForegroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primary,
-                              ),
-                              icon: Icon(
-                                item.isCurrent ? Icons.star : Icons.star_border,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: context.s.text('Delete routine'),
-                              onPressed: () => _delete(context, ref, item.id),
-                              icon: const Icon(Icons.delete_outline),
-                            ),
-                          ],
-                        ),
+                  if (index == 0) {
+                    final theme = Theme.of(context);
+                    return Text(
+                      context.s.text('Tap the star to make a routine current.'),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
-                    ),
-                  );
+                    );
+                  }
+                  final item = items[index - 1];
+                  return item.isCurrent
+                      ? _CurrentRoutineCard(
+                          item: item,
+                          onDelete: () => _delete(context, ref, item.id),
+                        )
+                      : _RoutineCard(
+                          item: item,
+                          onMakeCurrent: () => ref.mutate(
+                            (repository) =>
+                                repository.setCurrentRoutine(item.id),
+                          ),
+                          onDelete: () => _delete(context, ref, item.id),
+                        );
                 },
               ),
             Positioned(
-              right: 16,
-              bottom: 16 + MediaQuery.paddingOf(context).bottom,
+              right: 20,
+              bottom: 24 + MediaQuery.paddingOf(context).bottom,
               child: FloatingActionButton.extended(
                 tooltip: context.s.text('Create routine'),
                 onPressed: () => _openCreate(context, ref),
@@ -382,4 +336,226 @@ class _ImportDialogState extends State<_ImportDialog> {
 
 void _showMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
+
+String? _routineSubtitle(BuildContext context, RoutineListItem item) {
+  final s = context.s;
+  if (item.isTemplate) {
+    return s.text('12-week plan');
+  }
+  if (item.kind == RoutineKind.dynamicDay ||
+      item.kind == RoutineKind.customPattern) {
+    return s.routineKind(item.kind);
+  }
+  return null;
+}
+
+class _CurrentRoutineCard extends StatelessWidget {
+  const _CurrentRoutineCard({required this.item, required this.onDelete});
+
+  final RoutineListItem item;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final s = context.s;
+    final subtitle = _routineSubtitle(context, item);
+    return Material(
+      color: scheme.primaryContainer,
+      borderRadius: BorderRadius.circular(AppRadius.hero),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/routines/${item.id}'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 8, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  InfoPill(s.text('Current'), tone: PillTone.primary),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: null,
+                    style: IconButton.styleFrom(
+                      disabledForegroundColor: scheme.primary,
+                    ),
+                    icon: const Icon(Icons.star),
+                  ),
+                  IconButton(
+                    tooltip: s.text('Delete routine'),
+                    color: scheme.onPrimaryContainer,
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.onPrimaryContainer.withValues(
+                            alpha: 0.8,
+                          ),
+                        ),
+                      ),
+                    if (item.isTemplate) _TemplateProgress(routineId: item.id),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Week of the plan and how many of its sessions are logged.
+class _TemplateProgress extends ConsumerWidget {
+  const _TemplateProgress({required this.routineId});
+
+  final int routineId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final days = ref.watch(planDaysProvider(routineId)).value;
+    final anchor = ref
+        .watch(routineDetailsProvider(routineId))
+        .value
+        ?.anchorMonday;
+    if (days == null || anchor == null) {
+      return const SizedBox.shrink();
+    }
+    final sessions = days.where((day) => !day.isRest).toList();
+    final logged = sessions.where((day) => day.logged).length;
+    final today = dateOnly(ref.watch(clockProvider)());
+    final week = templateWeekOf(anchor, today);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final style = theme.textTheme.labelMedium?.copyWith(
+      color: scheme.onPrimaryContainer.withValues(alpha: 0.85),
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final s = context.s;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: sessions.isEmpty ? 0 : logged / sessions.length,
+              minHeight: 8,
+              color: scheme.primary,
+              backgroundColor: scheme.surface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (week != null)
+                Expanded(
+                  child: Text(
+                    s.weekOf(week, templateWeeks),
+                    style: style,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              else
+                const Spacer(),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  s.sessionsOf(logged, sessions.length),
+                  style: style,
+                  textAlign: TextAlign.end,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoutineCard extends StatelessWidget {
+  const _RoutineCard({
+    required this.item,
+    required this.onMakeCurrent,
+    required this.onDelete,
+  });
+
+  final RoutineListItem item;
+  final VoidCallback onMakeCurrent;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final s = context.s;
+    final subtitle = _routineSubtitle(context, item);
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: InkWell(
+        onTap: () => context.push('/routines/${item.id}'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 6, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: s.text('Make current'),
+                onPressed: onMakeCurrent,
+                icon: const Icon(Icons.star_border),
+              ),
+              IconButton(
+                tooltip: s.text('Delete routine'),
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

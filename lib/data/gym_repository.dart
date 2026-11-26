@@ -2129,12 +2129,23 @@ class GymRepository {
     final logged = await _sessionOn(routine.id, formatIsoDate(day));
     final exercises = <PrescribedExercise>[];
     for (final exercise in workout.exercises) {
+      final strength = exercise.exercise.kind == ExerciseKind.strength;
+      final previous = strength
+          ? await _previousLog(
+              routineId: routine.id,
+              exercise: exercise.exercise,
+              beforeIso: formatIsoDate(day),
+              targetReps: exercise.reps,
+            )
+          : null;
       exercises.add(
         PrescribedExercise(
           exercise: exercise.exercise,
           sets: exercise.sets,
           reps: exercise.reps,
-          weightKg: exercise.exercise.kind == ExerciseKind.strength
+          previousKg: previous?.weightKg,
+          previousReps: previous?.totalReps,
+          weightKg: strength
               ? await prescribedWeight(
                   routineId: routine.id,
                   exercise: exercise.exercise,
@@ -2524,6 +2535,8 @@ class GymRepository {
           ? _strengthSets(exercise, logged)
           : const [],
       restSeconds: exercise.restSeconds,
+      previousKg: substitute == null ? exercise.previousKg : null,
+      previousReps: substitute == null ? exercise.previousReps : null,
     );
   }
 
