@@ -1,6 +1,8 @@
-# Gym
+# Kilo
 
 App local de entrenamiento para Android. La interfaz está en inglés o en español. Los datos se quedan en el teléfono, en SQLite. No hay cuenta ni suscripción: es una alternativa a las apps de gimnasio de pago.
+
+El logo está en `assets/branding/`: una barra con discos que crecen como un gráfico de progreso, y el último disco, en ámbar, es la siguiente subida de 2,5 kg.
 
 Puedes tener varias rutinas y marcar una como actual. Home muestra esa rutina y el día de hoy: descanso, el entrenamiento que toca, o que el plan no tiene sesión. El menú lateral, en Home, Exercises y Routines, lleva a esas pantallas, cambia el tema entre system, light y dark, y el idioma entre system, English y Spanish. System sigue el idioma del teléfono cuando es español, y usa inglés en cualquier otro caso.
 

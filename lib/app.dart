@@ -89,7 +89,7 @@ class _GymScaffoldState extends ConsumerState<GymScaffold>
       builder: (context, _) {
         final locale = _locale.resolve(_platform);
         return MaterialApp.router(
-          onGenerateTitle: (context) => AppStrings(locale).text('Gym'),
+          onGenerateTitle: (context) => 'Kilo',
           locale: locale,
           supportedLocales: const [Locale('en'), Locale('es')],
           localizationsDelegates: const [

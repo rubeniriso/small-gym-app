@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!-- Kilo: plates grow along the bar like a progress chart; the amber plate is the next 2.5 kg. -->
+  <g transform="translate(9.72 13.41) scale(0.82)">
+    <rect x="22" y="52" width="64" height="4" rx="2" fill="#FFFFFF"/>
+    <rect x="30" y="46" width="8" height="16" rx="3" fill="#FFFFFF" fill-opacity="0.6"/>
+    <rect x="41" y="41" width="8" height="26" rx="3" fill="#FFFFFF" fill-opacity="0.8"/>
+    <rect x="52" y="36" width="8" height="36" rx="3" fill="#FFFFFF"/>
+    <rect x="63" y="31" width="9" height="46" rx="3" fill="#FFB300"/>
+    <path d="M62.5 25 L67.5 20 L72.5 25" fill="none" stroke="#FFB300" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -214,5 +214,5 @@ String _title(AppStrings s, String location) {
   if (location.startsWith('/routines')) {
     return s.text('Routines');
   }
-  return s.text('Gym');
+  return 'Kilo';
 }

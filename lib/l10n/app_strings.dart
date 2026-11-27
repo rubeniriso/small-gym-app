@@ -373,7 +373,6 @@ const _exerciseEs = <String, String>{
 };
 
 const _es = <String, String>{
-  'Gym': 'Gimnasio',
   'Home': 'Inicio',
   'Exercises': 'Ejercicios',
   'Routines': 'Rutinas',
